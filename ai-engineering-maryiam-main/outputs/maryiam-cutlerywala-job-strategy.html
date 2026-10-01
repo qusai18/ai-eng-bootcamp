@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Job Strategy — Maryiam Cutlerywala</title>
+  <style>
+    :root {
+      --bg: #f3f6f4;
+      --ink: #1a2421;
+      --muted: #5a6b64;
+      --card: #ffffff;
+      --line: #d5e0db;
+      --accent: #0f6b5c;
+      --accent-soft: #e6f2ef;
+      --warn: #8a4b1f;
+      --warn-soft: #f7efe6;
+      --ok: #1f5f3a;
+      --ok-soft: #e8f3ec;
+      --shadow: 0 1px 2px rgba(26, 36, 33, 0.06), 0 8px 24px rgba(26, 36, 33, 0.05);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 500px at 10% -10%, #dfece7 0%, transparent 55%),
+        radial-gradient(900px 400px at 100% 0%, #e8ebe4 0%, transparent 50%),
+        var(--bg);
+      line-height: 1.45;
+    }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 28px 18px 56px; }
+    header.hero {
+      background: linear-gradient(135deg, #0f6b5c 0%, #1a4a5c 100%);
+      color: #f7fbf9;
+      border-radius: 16px;
+      padding: 28px 26px;
+      box-shadow: var(--shadow);
+    }
+    header.hero h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.55rem, 3vw, 2rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    header.hero .meta { margin: 0; color: #d4e8e2; font-size: 0.98rem; }
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .tag {
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      font-size: 0.78rem;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.22);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 14px;
+      margin-top: 16px;
+    }
+    @media (max-width: 780px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px 18px 16px;
+      box-shadow: var(--shadow);
+    }
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 1.05rem;
+      letter-spacing: 0.01em;
+    }
+    .card p, .card li { font-family: system-ui, -apple-system, Segoe UI, sans-serif; font-size: 0.92rem; color: var(--ink); }
+    .card p { margin: 0 0 10px; color: var(--muted); }
+    .card ul { margin: 0; padding-left: 1.1rem; }
+    .card li { margin: 0.35rem 0; }
+    .section-label {
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill {
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      font-size: 0.8rem;
+      padding: 7px 11px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #fafcfb;
+    }
+    .pill.challenge { background: var(--warn-soft); border-color: #e5d2bc; color: var(--warn); }
+    .pill.opportunity { background: var(--ok-soft); border-color: #cfe3d6; color: var(--ok); }
+    .pill.principle { background: var(--accent-soft); border-color: #c5ddd6; color: var(--accent); }
+    .full { margin-top: 14px; }
+    .objectives li strong { color: var(--accent); }
+    .timeline {
+      position: relative;
+      margin: 8px 0 0;
+      padding-left: 18px;
+      border-left: 3px solid #c9ddd6;
+    }
+    .milestone {
+      position: relative;
+      padding: 0 0 16px 12px;
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      font-size: 0.9rem;
+    }
+    .milestone:last-child { padding-bottom: 0; }
+    .milestone::before {
+      content: "";
+      position: absolute;
+      left: -23px;
+      top: 4px;
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .milestone .when {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    @media (max-width: 700px) { .kpis { grid-template-columns: 1fr 1fr; } }
+    .kpi {
+      background: var(--accent-soft);
+      border: 1px solid #c5ddd6;
+      border-radius: 12px;
+      padding: 12px;
+      text-align: left;
+    }
+    .kpi .n {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.55rem;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .kpi .l {
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+    .risks { display: grid; gap: 10px; }
+    .risk {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    @media (max-width: 700px) { .risk { grid-template-columns: 1fr; } }
+    .risk .side { padding: 12px 14px; font-family: system-ui, -apple-system, Segoe UI, sans-serif; font-size: 0.86rem; }
+    .risk .r { background: var(--warn-soft); }
+    .risk .m { background: var(--ok-soft); }
+    .risk .side span {
+      display: block;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 4px;
+      opacity: 0.85;
+    }
+    footer {
+      margin-top: 18px;
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <div class="section-label" style="color:#b7d7cf">Job Strategy Document</div>
+      <h1>Maryiam Cutlerywala</h1>
+      <p class="meta">Mid-level BA / systems &amp; digital delivery · Fully remote · Under 3 months (by mid-Dec 2026)</p>
+      <div class="tags">
+        <span class="tag">Employed · preparing exit/move</span>
+        <span class="tag">Edge: BRDs · UAT · Agile · $1M+ delivery</span>
+        <span class="tag">Approach: portfolio + LinkedIn</span>
+        <span class="tag">5–15 hrs / week</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <div class="section-label">1. Diagnosis</div>
+        <h2>Current situation</h2>
+        <p>Mid-level BA with 3+ years delivery experience, open to general BA / systems / digital roles. Primary pitch: requirements, UAT, and cross-platform delivery — not LMS-only branding.</p>
+        <div class="section-label" style="margin-top:12px">Challenges</div>
+        <div class="pill-row">
+          <span class="pill challenge">Fully remote only</span>
+          <span class="pill challenge">&lt;3 month clock</span>
+          <span class="pill challenge">Remote BA scarcity</span>
+          <span class="pill challenge">LMS framing vs BA lead</span>
+        </div>
+        <div class="section-label" style="margin-top:12px">Opportunities</div>
+        <div class="pill-row">
+          <span class="pill opportunity">$1M+ multi-platform BA work</span>
+          <span class="pill opportunity">BRD / UAT / Agile proof</span>
+          <span class="pill opportunity">Path to PM / delivery lead</span>
+          <span class="pill opportunity">LinkedIn as distribution</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-label">Market snapshot · Sept 2026</div>
+        <h2>Why remote feels hard</h2>
+        <ul>
+          <li>~14% of BA postings fully remote; ~31% remote+hybrid (Get U Hired 2026)</li>
+          <li>Broader market: ~4% of new postings fully remote in Q1 2026 (Robert Half)</li>
+          <li>Remote BA screens often want Agile, SQL, Jira/Confluence</li>
+          <li>Better lanes: healthcare, consulting, gov-contract, distributed SaaS</li>
+        </ul>
+      </section>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <div class="section-label">2. Guiding policy</div>
+        <h2>Portfolio / build-in-public</h2>
+        <p>Ship proof (artifacts + LinkedIn), compete for scarce true-remote BA roles, stay employed until the offer clears the bar.</p>
+        <div class="pill-row">
+          <span class="pill principle">Remote non-negotiable</span>
+          <span class="pill principle">Lead with BA delivery</span>
+          <span class="pill principle">Proof over certs this sprint</span>
+          <span class="pill principle">Protect energy / runway</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-label">3. Objectives</div>
+        <h2>Long-term + SMART short-term</h2>
+        <p><strong style="color:var(--accent)">~3 years:</strong> BA → PM / delivery lead.</p>
+        <ul class="objectives">
+          <li><strong>Oct 15:</strong> LinkedIn reposition + 4 posts</li>
+          <li><strong>Nov 1:</strong> 3-piece portfolio pack Featured</li>
+          <li><strong>Dec 15:</strong> 25 apps · 5 screens · 1+ late-stage</li>
+        </ul>
+      </section>
+    </div>
+
+    <section class="card full">
+      <div class="section-label">4. Action plan</div>
+      <h2>Initiatives · resources · ownership</h2>
+      <div class="pill-row" style="margin-bottom:12px">
+        <span class="pill">LinkedIn / content (active)</span>
+        <span class="pill">3 portfolio artifacts</span>
+        <span class="pill">Targeted remote apps</span>
+        <span class="pill">2–3 warm outreaches / week</span>
+      </div>
+      <p style="margin:0">Resources: mostly own time (5–15 hrs/week). Suggested 10-hr split — 4 content · 3 portfolio · 3 applications. Solo effort; optional peer review later.</p>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <div class="section-label">5. Roadmap</div>
+        <h2>Milestones</h2>
+        <div class="timeline">
+          <div class="milestone"><span class="when">Oct 1, 2026</span>LinkedIn reposition live</div>
+          <div class="milestone"><span class="when">Nov 1, 2026</span>Portfolio pack v1 + Featured</div>
+          <div class="milestone"><span class="when">Nov 15, 2026</span>15 apps + 4 posts</div>
+          <div class="milestone"><span class="when">Nov 22, 2026</span>Midpoint conversion check</div>
+          <div class="milestone"><span class="when">Dec 15, 2026</span>25+ apps · interview/offer window</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-label">5. KPIs</div>
+        <h2>Targets for this sprint</h2>
+        <div class="kpis">
+          <div class="kpi"><div class="n">8</div><div class="l">LinkedIn posts / 12 weeks</div></div>
+          <div class="kpi"><div class="n">3</div><div class="l">Portfolio artifacts</div></div>
+          <div class="kpi"><div class="n">25</div><div class="l">Remote applications</div></div>
+          <div class="kpi"><div class="n">5</div><div class="l">First-round screens</div></div>
+          <div class="kpi"><div class="n">24</div><div class="l">Warm outreaches</div></div>
+          <div class="kpi"><div class="n">1+</div><div class="l">Final / offer talks</div></div>
+        </div>
+      </section>
+    </div>
+
+    <section class="card full">
+      <div class="section-label">6. Risk management</div>
+      <h2>Risks paired with mitigations</h2>
+      <div class="risks">
+        <div class="risk">
+          <div class="side r"><span>Risk</span>Remote BA scarcity + national competition</div>
+          <div class="side m"><span>Mitigation</span>Track true-remote vs hybrid-bait weekly; prioritize remote-culture employers</div>
+        </div>
+        <div class="risk">
+          <div class="side r"><span>Risk</span>5–15 hrs/week while employed → portfolio slips</div>
+          <div class="side m"><span>Mitigation</span>Timebox 3 artifacts; ship “good enough” by Nov 1</div>
+        </div>
+        <div class="risk">
+          <div class="side r"><span>Risk</span>LMS/education framing under-sells BA delivery</div>
+          <div class="side m"><span>Mitigation</span>Rewrite headline/summary first; education becomes supporting color</div>
+        </div>
+        <div class="risk">
+          <div class="side r"><span>Risk</span>&lt;3 screens by day 60</div>
+          <div class="side m"><span>Mitigation</span>Widen titles (Functional / Requirements / Digital BA); keep remote filter</div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      Generated Sept 22, 2026 from workshop + resume · See maryiam-cutlerywala-job-strategy.md for full prose and source links
+    </footer>
+  </div>
+</body>
+</html>

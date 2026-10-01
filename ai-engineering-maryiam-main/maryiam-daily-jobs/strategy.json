@@ -1,0 +1,103 @@
+{
+  "candidate": {
+    "name": "Maryiam Cutlerywala",
+    "email": "busybeeqk_786@yahoo.com",
+    "location": "Ellicott City, Maryland",
+    "headline": "Business Analyst | Requirements, UAT & Digital Delivery (Remote)"
+  },
+  "target": {
+    "role": "Mid-level Business Analyst / systems & digital delivery",
+    "workMode": "fully_remote",
+    "timeframe": "under_3_months",
+    "path": "BA → PM / delivery lead"
+  },
+  "search": {
+    "queries": [
+      "business analyst",
+      "requirements analyst",
+      "functional analyst",
+      "systems analyst",
+      "digital business analyst",
+      "IT business analyst"
+    ],
+    "includeKeywords": [
+      "business analyst",
+      "requirements",
+      "user stories",
+      "uat",
+      "agile",
+      "scrum",
+      "brd",
+      "functional",
+      "systems analyst",
+      "process",
+      "stakeholder",
+      "healthcare",
+      "medicaid",
+      "mmis",
+      "government",
+      "jira",
+      "confluence"
+    ],
+    "boostKeywords": [
+      "remote",
+      "work from home",
+      "fully remote",
+      "uat",
+      "requirements",
+      "agile",
+      "user stories",
+      "healthcare",
+      "public trust",
+      "federal"
+    ],
+    "excludeKeywords": [
+      "oracle ebs",
+      "oracle fusion",
+      "oracle cpq",
+      "netsuite",
+      "sap hana",
+      "s/4hana",
+      "bcba",
+      "behavior analyst",
+      "board certified behavior",
+      "salesforce admin only",
+      "on-site only",
+      "onsite only",
+      "5 days in office"
+    ],
+    "softExcludeKeywords": [
+      "hybrid",
+      "3 days onsite",
+      "must be local",
+      "relocation required"
+    ],
+    "preferredSectors": ["healthcare", "consulting", "government", "saas", "digital delivery"],
+    "dailyBatchSize": 20,
+    "weeklyApplyTarget": 8,
+    "totalApplyTarget": 25
+  },
+  "coverBlurb": "Mid-level Business Analyst with 3+ years delivering BRDs, user stories, process flows, functional testing/UAT, and cross-team liaison on multi-platform digital solutions valued at $1M+. Seeking a fully remote BA / systems role where I can drive clear requirements, test readiness, and stakeholder alignment — with a path toward delivery leadership.",
+  "boards": {
+    "indeed": {
+      "label": "Indeed",
+      "url": "https://www.indeed.com/jobs?q=business+analyst&l=Remote&fromage=1&sort=date"
+    },
+    "linkedin": {
+      "label": "LinkedIn",
+      "url": "https://www.linkedin.com/jobs/search/?keywords=business%20analyst&location=United%20States&f_WT=2&f_TPR=r86400"
+    },
+    "dice": {
+      "label": "Dice",
+      "url": "https://www.dice.com/jobs?q=business+analyst&location=Remote&countryCode=US&radius=30&radiusUnit=mi&page=1&pageSize=20&filters.workplaceTypes=Remote&language=en"
+    },
+    "monster": {
+      "label": "Monster",
+      "url": "https://www.monster.com/jobs/search?q=business+analyst&where=Remote&page=1"
+    },
+    "careerbuilder": {
+      "label": "CareerBuilder",
+      "url": "https://www.careerbuilder.com/jobs?keywords=business+analyst&location=Remote"
+    }
+  }
+}

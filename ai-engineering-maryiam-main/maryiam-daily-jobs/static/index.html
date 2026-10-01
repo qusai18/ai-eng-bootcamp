@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Maryiam · Daily Job Board</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div>
+        <p class="eyebrow">Daily apply ritual · strategy-aligned</p>
+        <h1 id="candidateName">Maryiam Cutlerywala</h1>
+        <p class="sub" id="candidateHeadline">Business Analyst · Fully remote</p>
+      </div>
+      <div class="top-actions">
+        <button type="button" class="btn ghost" id="btnRefresh" title="Force re-fetch from sources">Refresh pool</button>
+        <button type="button" class="btn" id="btnCopyBlurb">Copy cover blurb</button>
+      </div>
+    </header>
+
+    <section class="kpis" id="kpis" aria-label="Application KPIs"></section>
+
+    <section class="boards" aria-label="Open board searches">
+      <h2>Open today’s searches</h2>
+      <p class="hint">Each link opens <strong>business analyst</strong> + <strong>Remote</strong> on that board (Indeed, LinkedIn, Dice, Monster, CareerBuilder).</p>
+      <div class="board-row" id="boardLinks"></div>
+    </section>
+
+    <section class="daily" aria-label="Today's jobs">
+      <div class="section-head">
+        <h2>Today’s batch <span id="batchMeta"></span></h2>
+        <p class="hint">Only <strong>Indeed · Dice · LinkedIn · Monster · CareerBuilder</strong> · remote · USA · Business Analyst. Expired listings are filtered out.</p>
+      </div>
+      <div id="jobList" class="job-list">
+        <div class="loading">Loading today’s roles…</div>
+      </div>
+    </section>
+
+    <section class="history" aria-label="Application history">
+      <h2>Application log</h2>
+      <div id="historyList" class="history-list"></div>
+    </section>
+
+    <footer class="foot">
+      Local only · does not auto-login or auto-submit to LinkedIn/Indeed · data in <code>maryiam-daily-jobs/data/</code>
+    </footer>
+  </div>
+
+  <dialog id="applyDialog">
+    <form method="dialog" id="applyForm">
+      <h3>Apply checklist</h3>
+      <p id="applyJobTitle"></p>
+      <ol>
+        <li>Cover blurb copied to clipboard</li>
+        <li>Job page opens in a new tab</li>
+        <li>Submit the application on that site</li>
+        <li>Come back and confirm below</li>
+      </ol>
+      <div class="dialog-actions">
+        <button type="submit" class="btn ghost" value="cancel">Cancel</button>
+        <button type="submit" class="btn" value="applied" id="confirmApplied">I applied</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/app.js"></script>
+</body>
+</html>
