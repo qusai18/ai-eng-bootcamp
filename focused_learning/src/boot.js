@@ -1,0 +1,1901 @@
+export function boot() {
+  'use strict';
+  if (boot.done) return;
+  boot.done = true;
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// Load only the reader needed for the selected file, with a second CDN fallback.
+const readerLoads = {};
+const READERS = {
+  pdfjsLib: ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js'],
+  mammoth: ['https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js', 'https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js'],
+  JSZip: ['https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'],
+  Tesseract: ['https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js', 'https://unpkg.com/tesseract.js@5/dist/tesseract.min.js']
+};
+async function ensureReader(name, progress) {
+  if (window[name]) return;
+  if (readerLoads[name]) return readerLoads[name];
+  readerLoads[name] = (async () => {
+    for (const url of READERS[name]) {
+      if (progress) progress('Loading ' + name + ' reader...');
+      try {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          const timer = setTimeout(() => { script.remove(); reject(new Error('Reader download timed out')); }, 15000);
+          script.src = url;
+          script.onload = () => { clearTimeout(timer); window[name] ? resolve() : reject(new Error('Reader unavailable')); };
+          script.onerror = () => { clearTimeout(timer); script.remove(); reject(new Error('Reader download blocked')); };
+          document.head.appendChild(script);
+        });
+        if (name === 'pdfjsLib') window.pdfjsLib.GlobalWorkerOptions.workerSrc = url.replace('pdf.min.js', 'pdf.worker.min.js');
+        return;
+      } catch (error) { /* Try the alternate reader host. */ }
+    }
+    throw new Error('Could not download the ' + name + ' reader. Open this HTML in a full browser tab with internet access, then retry. TXT and Markdown work without downloads.');
+  })();
+  try { await readerLoads[name]; } finally { delete readerLoads[name]; }
+}
+
+/* ============================== UTILS ============================== */
+const $ = s => document.querySelector(s);
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const fmtInt = n => n.toLocaleString('en-US');
+const fmtK = n => n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n);
+const fmtBytes = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(0) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+const fmtDate = t => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const fmtDue = d => d <= 0 ? 'now' : d < 1 ? 'in ' + Math.max(1, Math.round(d * 24)) + 'h' : d < 1.5 ? 'tomorrow' : 'in ' + Math.round(d) + ' days';
+function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+function download(name, content, type) {
+  const mime = (type || 'text/plain') + ';charset=utf-8';
+  let inIframe = false;
+  try { inIframe = window.self !== window.top; } catch (e) { inIframe = true; }
+  const clickAnchor = href => {
+    const a = document.createElement('a');
+    a.href = href; a.download = name; a.rel = 'noopener';
+    a.style.position = 'fixed'; a.style.top = '-1000px'; a.style.opacity = '0';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => a.remove(), 1500);
+  };
+  try {
+    const url = URL.createObjectURL(new Blob([content], { type: mime }));
+    clickAnchor(url);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    if (inIframe) toast('File generated \u2014 if nothing downloaded, this preview sandbox may block downloads. Open the app in a full browser tab.');
+    else toast('Exported \u201C' + name + '\u201D \u2014 check your Downloads folder.');
+  } catch (e) {
+    const rd = new FileReader();
+    rd.onload = () => clickAnchor(rd.result);
+    rd.readAsDataURL(new Blob([content], { type: mime }));
+  }
+}
+function toast(msg, type) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = '<span class="t-ic">' + ic(type === 'error' ? 'alert' : 'check', 15) + '</span><span>' + esc(msg) + '</span>';
+  $('#toasts').appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(8px)'; setTimeout(() => t.remove(), 320); }, 4200);
+}
+
+/* ============================== ICONS ============================== */
+const ICONS = {
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>',
+  chev: '<path d="M6 9l6 6 6-6"/>',
+  trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/>',
+  down: '<path d="M12 3v12M7 10l5 5 5-5M4 20h16"/>',
+  file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5"/>',
+  layers: '<path d="M12 3L2 8.5l10 5.5 10-5.5L12 3z"/><path d="M2 13.5l10 5.5 10-5.5"/>',
+  refresh: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  check: '<path d="M20 6L9 17l-5-5"/>',
+  x: '<path d="M18 6L6 18M6 6l12 12"/>',
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+  chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  git: '<line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+  alert: '<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>'
+};
+const ic = (n, s) => '<svg class="ic" width="' + (s || 16) + '" height="' + (s || 16) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ICONS[n] + '</svg>';
+const LOGO = '<svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="currentColor">' +
+  '<g class="logo-spin"><circle cx="18" cy="18" r="16.5" stroke-width="1" stroke-dasharray="3 5" opacity=".55"/></g>' +
+  '<circle cx="18" cy="18" r="12.5" stroke-width="1.4" opacity=".9"/>' +
+  '<path d="M18 1.5v7M18 27.5v7M1.5 18h7M27.5 18h7" stroke-width="1.4"/>' +
+  '<circle cx="18" cy="18" r="2.3" fill="#F0602F" stroke="none"/></svg>';
+const SPIN = '<svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.3" class="ic" style="animation:spin 1.3s linear infinite;transform-origin:center"><circle cx="7.5" cy="7.5" r="5"/><path d="M7.5 0v3M7.5 12v3M0 7.5h3M12 7.5h3"/></svg>';
+const RING = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="7" cy="7" r="5.4" opacity=".55"/></svg>';
+const CHECK = ic('check', 14);
+
+/* ============================== TEXT HUMANIZER ============================== */
+/* Converts messy extracted text (markdown syntax, curly quotes, em dashes,
+   bullets, arrows, URLs, stray unicode) into plain simple English. */
+function humanize(t) {
+  return String(t)
+    .replace(/```[^\n]*\n?([\s\S]*?)```/g, '$1')                 // code blocks
+    .replace(/`([^`]*)`/g, '$1')                     // inline code
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')           // markdown images
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')         // markdown links -> their text
+    .replace(/^#{1,6}\s+/gm, '')                     // heading hashes
+    .replace(/^\s*([-*_]\s*){3,}$/gm, '')            // horizontal rules
+    .replace(/^\s*>\s?/gm, '')                       // blockquote marks
+    .replace(/\*\*([^*]+)\*\*/g, '$1')               // bold
+    .replace(/\*([^*\n]+)\*/g, '$1')                 // italic
+    .replace(/__([^_]+)__/g, '$1')                   // bold alt
+    .replace(/https?:\/\/\S+/g, 'link')              // bare urls
+    .replace(/[\u2018\u2019\u201B]/g, "'")           // curly quotes
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+    .replace(/[\u2013\u2014\u2015]/g, ' - ')         // dashes
+    .replace(/\u2026/g, '...')
+    .replace(/\u2192/g, '->')
+    .replace(/\u00D7/g, 'x')
+    .replace(/[\u2022\u25CF\u25AA\u25E6\u2043\u00B7]/g, '-')  // bullets
+    .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, ' ')    // zero-width & nbsp
+    .replace(/\|/g, ' ')                             // markdown table pipes
+    .replace(/[^\x09\x0A\x20-\x7E]/g, ' ')           // any remaining non-ascii
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ ?\n ?/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/ - - /g, ' - ')
+    .trim();
+}
+
+/* ============================== PATTERN LIBRARY ============================== */
+/* [id, name, category, definition, signals, analogy] */
+const LIB = [
+['layered','Layered / N-Tier','Structural','Concerns are separated into horizontal tiers — presentation, business logic and data access — with dependencies pointing strictly downward.',
+ [['n[- ]?tier',3],['layered architecture',3],['presentation layer',2],['business logic layer',2],['data access layer',2],['\\blayers?\\b',1],['\\btiers?\\b',1]],
+ 'A restaurant: you never barge into the kitchen. You tell the waiter, the waiter tells the kitchen, and the food comes back the same way. Each floor only talks to the floor right below it \u2014 the kitchen never comes out to take your order either.'],
+['mvc','Model–View–Controller','Design','Splits an interface into state (model), presentation (view) and input mediation (controller).',
+ [['model[- ]view[- ]controller',3],['\\bmvc\\b',3],['controllers? and views?',2]],
+ 'A karaoke machine. The song list is the Model (the actual data), the lyrics screen is the View (what you see), and the remote is the Controller (it decides what happens when you press buttons). The screen doesn\u2019t pick songs and the remote doesn\u2019t memorize lyrics \u2014 one job each.'],
+['mvvm','Model–View–ViewModel','Design','Binds the view to an observable view-model so presentation logic becomes testable without UI.',
+ [['model[- ]view[- ]view[- ]model',3],['\\bmvvm\\b',3],['view[- ]?models?\\b',2],['data[- ]binding',1]],
+ 'Like a video-game HUD that updates by itself. Your character (the Model) picks up 10 gold, and the score counter (the View) ticks up instantly \u2014 because an invisible middleman (the ViewModel) watches the character and redraws the screen for you. The screen and the game data never talk directly.'],
+['clean','Clean / Hexagonal','Structural','The domain sits at the centre; dependencies point inward through ports and adapters, keeping frameworks at the edge.',
+ [['clean architecture',3],['hexagonal',3],['ports and adapters',3],['onion architecture',3],['dependency inversion',2],['domain (layer|core|centre|center)',2],['use[- ]cases?\\b',1]],
+ 'An airport. The city itself (your core logic) is what actually matters; the roads, trains and buses (databases, frameworks, screens) all connect to it through terminals (ports and adapters). Hate the bus company? Swap it. The city doesn\u2019t change.'],
+['micro','Microservices','Structural','Independently deployable services aligned to business capabilities, each owning its own data.',
+ [['micro[- ]?services?',3],['service boundar',2],['independently deploy',2],['decentrali[sz]ed (data|governance)',2],['service[- ]to[- ]service',1]],
+ 'A food court instead of one giant restaurant: a sushi stall, a pizza counter, a burger joint \u2014 each with its own kitchen and cash register. If the pizza place floods, you still get sushi. Need more burgers? Hire cooks for that stall only.'],
+['monolith','Modular Monolith','Structural','A single deployable unit with strictly enforced internal module boundaries.',
+ [['modular monolith',3],['monolith',2],['single deployable',2],['single deployment unit',2],['deployed as a (single|one)',2]],
+ 'One big school building with strict walls: math, science and music departments share a roof and a principal (one deployment), but the walls are real \u2014 the band room can\u2019t casually wander into the chemistry lab. Cheaper than three campuses, tidier than an open-plan free-for-all.'],
+['eda','Event-Driven Architecture','Messaging','Producers emit facts; consumers react asynchronously through a broker or bus.',
+ [['event[- ]driven',3],['event bus',3],['publish[- ]subscribe',3],['pub[- ]?sub',2],['event broker',2],['event consumers?',2]],
+ 'The school announcements group chat. The office posts \u201Cgym closed today\u201D once, and every club that cares reacts on its own \u2014 basketball reschedules, yoga club celebrates. Nobody gets ten personal phone calls; the message just flows to whoever subscribed.'],
+['queue','Message Queues','Messaging','Work is handed off through durable queues for asynchronous, buffered processing.',
+ [['message queue',3],['dead[- ]letter',3],['message broker',2],['asynchronous messaging',2],['at[- ]least[- ]once',2],['queue[- ]based',1]],
+ 'The homework drop tray. You slide your essay in and walk away \u2014 the teacher grades it whenever they can. If they\u2019re drowning, the tray holds everything and nothing gets lost. The \u201Cdead-letter\u201D box? Lost-and-found for the one homework nobody could read.'],
+['cqrs','CQRS','Data','Reads and writes use separate models so each side can scale and evolve on its own.',
+ [['\\bcqrs\\b',3],['command query responsibility',3],['read models?',2],['write models?',2],['command handlers?',2],['denormali[sz]ed (read|view)',2]],
+ 'Reading the menu vs. running the kitchen. Fifty people can read the menu at the same time, fast and carefree (queries). Placing an order and cooking it (commands) is a serious, careful process with its own rules. Splitting them lets each side get as big as it needs.'],
+['es','Event Sourcing','Data','State is derived by replaying an append-only log of events rather than stored in place.',
+ [['event sourcing',3],['append[- ]only',2],['event streams?',2],['replay',1],['rebuild(ing)? (the )?state',2]],
+ 'A save file that stores every move you made, not just your final score. Want to know where you are? Replay the moves. Want to undo a cheat? Replay the moves without it. That\u2019s why you can rewind a chess game move-by-move to find exactly where it went wrong.'],
+['saga','Saga','Data','Long-running distributed transactions are coordinated as sequences of local steps with compensating actions.',
+ [['\\bsagas?\\b',3],['compensating transaction',3],['distributed transaction',2],['choreograph',2],['orchestrat',1]],
+ 'Booking a trip with friends: flights, hotel and concert tickets are three separate bookings. The concert sells out? You cancel the hotel and get a refund \u2014 every step has an undo. There\u2019s no magic button that reserves all three at once, so each step carries its own escape hatch.'],
+['gateway','API Gateway','API','A single edge entry point that routes, composes and secures requests to backing services.',
+ [['api gateway',3],['edge service',2],['single entry point',2],['request rout',2],['\\bgateway\\b',1]],
+ 'The school front office. Visitors don\u2019t wander the halls hunting for teachers \u2014 everyone checks in at one desk, which checks IDs, hands out badges, and points you to room 214. One door for everyone, and the school can rearrange its rooms without confusing guests.'],
+['bff','Backend for Frontend','API','Each client channel gets a tailor-made aggregation layer instead of one general-purpose API.',
+ [['backend for frontend',3],['\\bbffs?\\b',3],['per[- ]client api',2]],
+ 'Magazines, not one giant catalog. Gamers get a gaming mag, chefs get a cooking mag \u2014 each audience gets exactly their info, pre-sorted, instead of flipping through 900 pages to find their section. One backend per type of app, each shaped for its readers.'],
+['breaker','Circuit Breaker','Resilience','Repeated failures trip a breaker so calls fail fast instead of piling onto a struggling dependency.',
+ [['circuit breaker',3],['cascading failure',2],['\\bhystrix\\b',2],['half[- ]open',2],['circuit',1],['fail[- ]fast',1]],
+ 'The breaker switch in your house. A toaster keeps short-circuiting, so the breaker flips OFF \u2014 the house stops sending power instead of letting the wires burn. Later, when things cool down, you flip it back and test gently. Fail fast; don\u2019t burn the house down.'],
+['retry','Retries & Idempotency','Resilience','Transient failures are absorbed with bounded retries, backoff and idempotent operations.',
+ [['exponential backoff',3],['idempoten',3],['transient (failure|error)',2],['\\bjitter\\b',2],['retr(y|ies|ying)',2],['time ?outs?\\b',1]],
+ 'Knocking on a friend\u2019s door: no answer, so you wait a minute and try again \u2014 you don\u2019t hammer fifty times in five seconds. And \u201Cidempotent\u201D means: telling the vending machine \u201Cgive me slot B4\u201D twice still gets you exactly one soda, never two.'],
+['scaling','Load Balancing & Scaling','Platform','Traffic spreads across interchangeable instances that scale out horizontally.',
+ [['load balanc',3],['horizontal(ly)? scal',3],['auto[- ]scal',2],['round[- ]robin',2],['scale (out|horizontally)',2]],
+ 'The line manager at an amusement park, waving people toward whichever ride operator is free so nobody\u2019s line explodes. Park packed? They just open more ride stations (add more servers) \u2014 same ride, way more capacity.'],
+['cache','Caching Strategies','Data','Hot data is served from a faster layer, with explicit invalidation and expiry rules.',
+ [['cache[- ]aside',3],['cache invalidation',3],['\\bttl\\b',2],['\\blru\\b',2],['eviction polic',2],['\\bcache',2]],
+ 'Snacks in your desk drawer. Way faster than walking to the store every time you\u2019re hungry \u2014 but a drawer snack from last semester is a biohazard, so you need an expiry rule (TTL) for tossing the stale ones.'],
+['cdn','CDN & Edge','Platform','Content is served from geographically distributed edge locations close to users.',
+ [['\\bcdn\\b',3],['content delivery network',3],['edge location',2],['edge comput',2]],
+ 'A global burger chain. The recipe lives at HQ, but every city has its own branch cooking it \u2014 your burger comes from the store down the street, not from a kitchen 8,000 km away. Less waiting, and if one branch is closed you drive to the next one.'],
+['serverless','Serverless / FaaS','Platform','Functions run on demand on a managed runtime; capacity and scaling are someone else\u2019s problem.',
+ [['serverless',3],['function as a service',3],['\\bfaas\\b',3],['\\blambdas?\\b',2],['cold start',2]],
+ 'Ordering pizza instead of employing a full-time chef. You pay per pizza, and the pizzeria handles the staff, ovens and Friday-night rush. The catch (\u201Ccold start\u201D)? The very first order after opening takes a bit longer while they fire up the ovens.'],
+['containers','Containers & Orchestration','Platform','Workloads ship as containers and are scheduled, healed and scaled by a cluster orchestrator.',
+ [['kubernetes',3],['\\bk8s\\b',3],['container orchestration',3],['docker swarm',3],['containeri[sz]',2],['\\bhelm\\b',2],['docker',2],['\\bpods?\\b',1]],
+ 'Shipping containers plus a harbor master. Any container fits any ship because they\u2019re all built to one standard size \u2014 that\u2019s Docker. The harbor master (Kubernetes) decides which ship carries what, replaces the ones that sink, and summons more ships when traffic spikes.'],
+['cicd','CI/CD & Delivery','Process','Every change flows through automated build, test and progressive release pipelines.',
+ [['\\bci\\/cd\\b',3],['continuous (integration|deployment|delivery)',3],['blue[- ]green',3],['infrastructure as code',3],['gitops',3],['canary (release|deploy)',2],['deployment pipeline',2],['\\bterraform\\b',2],['\\bjenkins\\b',2]],
+ 'The school newspaper with an automatic pipeline: write -> edit -> proofread -> print -> deliver. Nobody retypes articles by hand, and an embarrassing typo gets caught at the proofreading stage \u2014 not after ten thousand copies are already printed.'],
+['strangler','Strangler Fig','Process','A legacy system is incrementally replaced, route by route, until the old core disappears.',
+ [['strangler',3],['anti[- ]corruption',3],['incremental(ly)? (migrat|replac)',2],['phased (migration|rollout)',2],['legacy (system|application|code)',1]],
+ 'The actual strangler fig vine. It seeds on an old tree and grows around it branch by branch, year by year, until one day the old tree is gone and the fig stands alone. You replace a scary old app one feature at a time \u2014 never one terrifying big-bang rewrite.'],
+['mesh','Service Mesh','Platform','A dedicated infrastructure layer handles service-to-service traffic, mTLS and observability via sidecars.',
+ [['service mesh',3],['sidecar',3],['\\bistio\\b',3],['\\benvoy\\b',2],['\\bmtls\\b',2],['\\blinkerd\\b',2]],
+ 'A personal interpreter for every ambassador. The ambassadors (services) just have the conversation; their interpreters (sidecars) handle the awkward stuff \u2014 speaking securely, keeping minutes, checking credentials. The ambassadors stay focused on the actual talk.'],
+['ddd','Domain-Driven Design','Design','The code mirrors the business domain: bounded contexts, aggregates and a ubiquitous language.',
+ [['domain[- ]driven',3],['\\bddd\\b',3],['bounded context',3],['aggregate root',3],['ubiquitous language',2],['value objects?',2],['domain events?',2],['domain model',1]],
+ 'Making the code speak the school\u2019s language. If everyone says \u201Chomeroom,\u201D the code says homeroom \u2014 not StudentGroupCollection_v2. And each department can mean something different by \u201Cenrollment\u201D without breaking the others: those are bounded contexts.'],
+['repo','Repository & Data Access','Data','Persistence is hidden behind collection-like abstractions so the domain never sees storage details.',
+ [['repository pattern',3],['unit of work',3],['\\bdao\\b',3],['data access',2],['\\borm\\b',2],['persistence (layer|ignorance)',2]],
+ 'The librarian. You ask for \u201Cevery dinosaur book\u201D and they bring them \u2014 whether they came from shelf 3 or the basement archive. You never crawl the stacks yourself, so the library can rearrange everything overnight and you\u2019d never even notice.'],
+['singleton','Singleton','Design','A class guarantees exactly one instance with a global access point.',
+ [['singleton',3],['exactly one instance',2],['single instance',1]],
+ 'The school principal. Exactly one exists, and everyone who needs the principal walks to the same office. You don\u2019t clone a new principal every time a class needs a permission slip signed.'],
+['factory','Factory Method','Design','Object creation is delegated to factory methods or dedicated creator classes.',
+ [['factory method',3],['abstract factory',3],['factory pattern',3],['object creation',2],['\\bfactor(y|ies)\\b',1]],
+ 'The vending machine. You press B4 and the machine hands you the right snack \u2014 you never see how it was assembled, stocked or wrapped. The factory builds objects so your code just says \u201Cgive me a Shape\u201D and gets one.'],
+['observer','Observer','Design','Subjects maintain a list of dependents and notify them automatically on state changes.',
+ [['observer pattern',3],['notify (its |the )?observers',3],['observers?\\b',2],['\\blisteners?\\b',1],['subscrib',1]],
+ 'YouTube subscriptions. You subscribe to a channel; when it uploads, the platform notifies every subscriber automatically. The channel doesn\u2019t personally call you, and you don\u2019t refresh their page all day \u2014 the news just finds you.'],
+['adapter','Adapter / Facade','Design','Unfriendly or legacy interfaces are wrapped behind simpler, intentional ones.',
+ [['\\bfacade',3],['decorator pattern',3],['adapter pattern',2],['simplified interface',2],['legacy interface',2],['wrapper',1]],
+ 'The travel plug adapter, and its cousin the universal remote. Your charger doesn\u2019t fit the foreign socket, so a small adapter translates between them. A facade is the one \u201CWATCH MOVIE\u201D button that dims the lights, drops the screen and starts the projector \u2014 instead of juggling six remotes.'],
+['solid','SOLID Principles','Design','Five object-oriented heuristics: single responsibility, open-closed, Liskov, interface segregation, dependency inversion.',
+ [['single responsibility',3],['open[- ]closed',3],['liskov',3],['interface segregation',3],['\\bsolid principles\\b',3],['dependency inversion',2],['\\bsolid\\b',1]],
+ 'Five rules for surviving group projects: one person, one job (Single Responsibility); add new features without breaking what works (Open-Closed); a substitute has to actually behave like the person they replace (Liskov); don\u2019t force teammates into tasks they never signed up for (Interface Segregation); rely on promises, not on one specific person (Dependency Inversion).'],
+['rest','REST & HTTP APIs','API','Resources are addressed over HTTP with representations, verbs and statelessness.',
+ [['rest (api|service|endpoint|interface|call)',3],['restful',2],['\\bopenapi\\b',2],['\\bswagger\\b',2],['http (verbs|methods|status)',2],['\\bendpoints?\\b',1],['stateless',1]],
+ 'A library catalog: every book has an address (call number), everyone uses the same standard verbs (look up, borrow, return), and the librarian remembers nothing about you between visits (stateless) \u2014 you bring your card every time. Simple, boring, works everywhere.'],
+['grpc','gRPC & GraphQL','API','Typed RPC contracts or client-shaped queries replace one-size-fits-all endpoints.',
+ [['\\bgrpc\\b',3],['\\bgraphql\\b',3],['protocol buffers',3],['\\bprotobuf',2],['schema stitching',2],['resolvers?',1]],
+ 'Two ways to order lunch. gRPC is the strict set-meal counter \u2014 \u201Cexactly 200g of rice, no substitutions\u201D \u2014 blazing fast because both sides agreed on the menu in advance. GraphQL is the buffet: fill your plate with exactly the fries and nothing else, no giant combo you never wanted.'],
+['sharding','Sharding & Partitioning','Data','Data is split across nodes by key so no single machine has to hold or serve everything.',
+ [['\\bshard',3],['partition key',3],['horizontal partition',3],['consistent hashing',3],['rebalanc',1],['\\bpartitions?\\b',1]],
+ 'A library split into branches by the author\u2019s last name. Ten million books in one building would collapse under their own weight; instead each branch holds one slice, and a directory (the hash) tells you exactly which branch has the book you want.'],
+['cap','Consistency & Replication','Data','Replicas and partitions force explicit trade-offs between consistency, availability and latency.',
+ [['eventual consistency',3],['strong consistency',3],['cap theorem',3],['two[- ]phase commit',3],['\\bpaxos\\b',3],['\\braft\\b',2],['quorum',2],['leader (election|follow)',2],['replica',1]],
+ 'Group work over group chat. When the wifi splits the team in two, you either make sure everyone still sees the same up-to-date doc (consistency \u2014 but the chat pauses), or keep the chat alive (availability \u2014 but someone edits an old version). You can\u2019t always have both.'],
+['stream','Stream Processing','Data','Continuous, unbounded data is processed with event time, windows and delivery guarantees.',
+ [['stream processing',3],['exactly[- ]once',3],['\\bflink\\b',2],['watermark',2],['event time',2],['\\bkinesis\\b',2],['kafka streams',3],['window(ing|ed)',1]],
+ 'Live sports with live stats, not tomorrow\u2019s highlight reel. The scoreboard counts the goal the second it happens. \u201CWindowing\u201D = asking questions like \u201Chow many goals in the last 10 minutes?\u201D while the game is still running.'],
+['warehouse','Analytics Pipelines','Data','Operational data is batched or streamed into analytical stores for aggregation and BI.',
+ [['data (warehouse|lake|lakehouse)',3],['\\betl\\b',3],['\\bolap\\b',3],['\\belt\\b',2],['columnar',2],['data pipeline',2],['\\bairflow\\b',2],['batch (job|processing)',1]],
+ 'The smoothie factory for data: fruit arrives from many farms (extract), gets washed and peeled (transform), blended and bottled, then shelved at the store (load) where anyone can grab a smoothie \u2014 aka a report \u2014 without ever visiting a farm.']
+].map(a => ({
+  id: a[0], name: a[1], cat: a[2], desc: a[3],
+  sigs: a[4].map(s => ({ t: s[0], w: s[1], rt: new RegExp(s[0], 'i') })),
+  ana: a[5]
+}));
+const LIBMAP = Object.fromEntries(LIB.map(p => [p.id, p]));
+const COMBINED_SRC = [...new Set(LIB.flatMap(p => p.sigs.map(s => s.t)))].join('|');
+
+/* ============================== GRAPH MODEL DATA ============================== */
+/* Curated relationships between patterns (works-with / contrasts / migration) */
+const EDGES = [
+  ['layered','clean'],['layered','mvc'],['mvc','mvvm'],['mvc','rest'],['clean','ddd'],['clean','repo'],
+  ['ddd','repo'],['ddd','micro'],['micro','gateway'],['micro','bff'],['micro','mesh'],['micro','containers'],
+  ['micro','cicd'],['micro','serverless'],['micro','saga'],['micro','queue'],['saga','es'],['cqrs','es'],
+  ['cqrs','micro'],['es','eda'],['eda','queue'],['eda','observer'],['queue','retry'],['queue','breaker'],
+  ['breaker','retry'],['gateway','rest'],['gateway','bff'],['bff','rest'],['rest','grpc'],['rest','cache'],
+  ['cache','cdn'],['cache','sharding'],['sharding','cap'],['cap','es'],['stream','warehouse'],['stream','eda'],
+  ['containers','cicd'],['containers','serverless'],['serverless','gateway'],['strangler','monolith'],
+  ['strangler','micro'],['monolith','micro'],['scaling','breaker'],['grpc','cqrs']
+];
+const CATCOL = {
+  Structural:'#C8401A', Design:'#7A5CB8', Data:'#2E7D6B', Messaging:'#B07A1F',
+  API:'#3B6FA8', Platform:'#6B4FA0', Resilience:'#A83A5B', Process:'#5B7326'
+};
+
+/* ============================== KNOWLEDGE RADAR (refs) ============================== */
+const REFS = {
+  layered:[['Multitier \u2014 Wikipedia','https://en.wikipedia.org/wiki/Multitier_architecture'],['N-Tier style \u2014 Azure','https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/n-tier']],
+  mvc:[['MVC \u2014 Wikipedia','https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93controller'],['MVC \u2014 MDN','https://developer.mozilla.org/en-US/docs/Glossary/MVC']],
+  mvvm:[['MVVM \u2014 Wikipedia','https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93viewmodel'],['MVVM \u2014 Microsoft Learn','https://learn.microsoft.com/en-us/dotnet/maui/mvvm/']],
+  clean:[['The Clean Architecture \u2014 Cleancoder','https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html'],['Hexagonal \u2014 Wikipedia','https://en.wikipedia.org/wiki/Hexagonal_architecture_(software)']],
+  micro:[['Microservices \u2014 Fowler','https://martinfowler.com/articles/microservices.html'],['Pattern catalog \u2014 microservices.io','https://microservices.io/patterns/microservices.html']],
+  monolith:[['MonolithFirst \u2014 Fowler','https://martinfowler.com/bliki/MonolithFirst.html'],['Monolithic architecture \u2014 microservices.io','https://microservices.io/patterns/monolithic.html']],
+  eda:[['Event-driven architecture \u2014 Wikipedia','https://en.wikipedia.org/wiki/Event-driven_architecture'],['Event-driven \u2014 AWS','https://aws.amazon.com/event-driven-architecture/']],
+  queue:[['Message queue \u2014 Wikipedia','https://en.wikipedia.org/wiki/Message_queue'],['Competing consumers \u2014 Azure','https://learn.microsoft.com/en-us/azure/architecture/patterns/competing-consumers']],
+  cqrs:[['CQRS \u2014 Fowler','https://martinfowler.com/bliki/CQRS.html'],['CQRS pattern \u2014 Azure','https://learn.microsoft.com/en-us/azure/architecture/patterns/cqrs']],
+  es:[['Event Sourcing \u2014 Fowler','https://martinfowler.com/eaaDev/EventSourcing.html'],['Event Sourcing \u2014 Azure','https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing']],
+  saga:[['Saga \u2014 microservices.io','https://microservices.io/patterns/data/saga.html'],['Saga pattern \u2014 Azure','https://learn.microsoft.com/en-us/azure/architecture/patterns/saga']],
+  gateway:[['API Gateway \u2014 microservices.io','https://microservices.io/patterns/apigateway.html'],['Gateway routing \u2014 Azure','https://learn.microsoft.com/en-us/azure/architecture/patterns/gateway-routing']],
+  bff:[['Backend for Frontends \u2014 Sam Newman','https://samnewman.io/patterns/backend-for-frontend/'],['BFF pattern \u2014 Azure','https://learn.microsoft.com/en-us/azure/architecture/patterns/backends-for-frontends']],
+  breaker:[['CircuitBreaker \u2014 Fowler','https://martinfowler.com/bliki/CircuitBreaker.html'],['Circuit Breaker \u2014 Azure','https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker']],
+  retry:[['Retry pattern \u2014 Azure','https://learn.microsoft.com/en-us/azure/architecture/patterns/retry'],['Timeouts, retries, backoff \u2014 AWS','https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/']],
+  scaling:[['Load balancing \u2014 Wikipedia','https://en.wikipedia.org/wiki/Load_balancing_(computing)'],['Autoscaling \u2014 Azure best practices','https://learn.microsoft.com/en-us/azure/architecture/best-practices/auto-scaling']],
+  cache:[['Caching \u2014 Azure best practices','https://learn.microsoft.com/en-us/azure/architecture/best-practices/caching'],['Caching strategies \u2014 AWS','https://aws.amazon.com/caching/best-practices/']],
+  cdn:[['CDN \u2014 Wikipedia','https://en.wikipedia.org/wiki/Content_delivery_network'],['What is a CDN \u2014 AWS','https://aws.amazon.com/what-is/cdn/']],
+  serverless:[['Serverless \u2014 Wikipedia','https://en.wikipedia.org/wiki/Serverless_computing'],['Serverless \u2014 Fowler','https://martinfowler.com/articles/serverless.html']],
+  containers:[['Kubernetes concepts','https://kubernetes.io/docs/concepts/overview/'],['Docker overview','https://docs.docker.com/get-started/overview/']],
+  cicd:[['CI/CD \u2014 Wikipedia','https://en.wikipedia.org/wiki/CI/CD'],['ContinuousDelivery \u2014 Fowler','https://martinfowler.com/bliki/ContinuousDelivery.html']],
+  strangler:[['StranglerFigApplication \u2014 Fowler','https://martinfowler.com/bliki/StranglerFigApplication.html'],['Strangler migration \u2014 Azure','https://learn.microsoft.com/en-us/azure/architecture/migrate/strangler-migration']],
+  mesh:[['What is a service mesh \u2014 Istio','https://istio.io/latest/about/service-mesh/'],['Service mesh \u2014 Wikipedia','https://en.wikipedia.org/wiki/Service_mesh']],
+  ddd:[['DomainDrivenDesign \u2014 Fowler','https://martinfowler.com/bliki/DomainDrivenDesign.html'],['DDD \u2014 Wikipedia','https://en.wikipedia.org/wiki/Domain-driven_design']],
+  repo:[['Repository \u2014 Fowler (PoEAA)','https://martinfowler.com/eaaCatalog/repository.html'],['Data access layer \u2014 Wikipedia','https://en.wikipedia.org/wiki/Data_access_layer']],
+  singleton:[['Singleton \u2014 Wikipedia','https://en.wikipedia.org/wiki/Singleton_pattern'],['Singleton \u2014 Refactoring.Guru','https://refactoring.guru/design-patterns/singleton']],
+  factory:[['Factory method \u2014 Wikipedia','https://en.wikipedia.org/wiki/Factory_method_pattern'],['Factory method \u2014 Refactoring.Guru','https://refactoring.guru/design-patterns/factory-method']],
+  observer:[['Observer \u2014 Wikipedia','https://en.wikipedia.org/wiki/Observer_pattern'],['Observer \u2014 Refactoring.Guru','https://refactoring.guru/design-patterns/observer']],
+  adapter:[['Adapter \u2014 Wikipedia','https://en.wikipedia.org/wiki/Adapter_pattern'],['Adapter \u2014 Refactoring.Guru','https://refactoring.guru/design-patterns/adapter']],
+  solid:[['SOLID \u2014 Wikipedia','https://en.wikipedia.org/wiki/SOLID'],['SOLID relevance \u2014 Cleancoder','https://blog.cleancoder.com/uncle-bob/2020/10/18/Solid-Relevance.html']],
+  rest:[['Fielding\u2019s dissertation (REST)','https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm'],['REST \u2014 MDN','https://developer.mozilla.org/en-US/docs/Glossary/REST']],
+  grpc:[['gRPC intro','https://grpc.io/docs/what-is-grpc/introduction/'],['GraphQL learn','https://graphql.org/learn/']],
+  sharding:[['Shard \u2014 Wikipedia','https://en.wikipedia.org/wiki/Shard_(database_architecture)'],['Sharding \u2014 MongoDB manual','https://www.mongodb.com/docs/manual/sharding/']],
+  cap:[['CAP theorem \u2014 Wikipedia','https://en.wikipedia.org/wiki/CAP_theorem'],['Eventual consistency \u2014 Wikipedia','https://en.wikipedia.org/wiki/Eventual_consistency']],
+  stream:[['Stream processing \u2014 Wikipedia','https://en.wikipedia.org/wiki/Stream_processing'],['Kafka introduction','https://kafka.apache.org/intro']],
+  warehouse:[['Data warehouse \u2014 Wikipedia','https://en.wikipedia.org/wiki/Data_warehouse'],['ETL \u2014 Azure data guide','https://learn.microsoft.com/en-us/azure/architecture/data-guide/relational-data/etl']]
+};
+const WIKITITLE = {
+  layered:'Multitier architecture', mvc:'Model\u2013view\u2013controller', mvvm:'Model\u2013view\u2013viewmodel',
+  clean:'Hexagonal architecture (software)', micro:'Microservices', monolith:'Monolithic system',
+  eda:'Event-driven architecture', queue:'Message queue', cqrs:'Command\u2013query separation',
+  es:'Event sourcing', saga:'Compensating transaction', gateway:null, bff:null, breaker:null, retry:null,
+  scaling:'Load balancing (computing)', cache:'Cache (computing)', cdn:'Content delivery network',
+  serverless:'Serverless computing', containers:'Kubernetes', cicd:'CI/CD', strangler:null,
+  mesh:'Service mesh', ddd:'Domain-driven design', repo:'Data access layer',
+  singleton:'Singleton pattern', factory:'Factory method pattern', observer:'Observer pattern',
+  adapter:'Adapter pattern', solid:'SOLID', rest:'Representational state transfer',
+  grpc:'gRPC', sharding:'Shard (database architecture)', cap:'CAP theorem',
+  stream:'Stream processing', warehouse:'Data warehouse'
+};
+const SOURCES = [
+  ['Wikipedia','https://en.wikipedia.org/w/index.php?search={q}'],
+  ['Scholar','https://scholar.google.com/scholar?q={q}'],
+  ['arXiv','https://arxiv.org/search/?query={q}&searchtype=all'],
+  ['ConceptRadar','https://duckduckgo.com/?q=site%3Aconceptradar.org+{q}'],
+  ['DDG','https://duckduckgo.com/?q={q}']
+];
+const SITES = [
+  ['ConceptRadar','https://conceptradar.org/'],
+  ['microservices.io','https://microservices.io/patterns/index.html'],
+  ['Azure Architecture Center','https://learn.microsoft.com/en-us/azure/architecture/browse/'],
+  ['AWS Architecture Center','https://aws.amazon.com/architecture/'],
+  ['Martin Fowler','https://martinfowler.com/'],
+  ['Refactoring.Guru','https://refactoring.guru/design-patterns/catalog'],
+  ['Google Cloud architecture','https://cloud.google.com/architecture'],
+  ['Patterns.dev','https://www.patterns.dev/']
+];
+
+const WKEY = 'focusedlearning_wiki_v1', XRKEY = 'focusedlearning_xrefs_v1';
+let WIKI_CACHE = {}, XREFS = {};
+try { WIKI_CACHE = JSON.parse(localStorage.getItem(WKEY) || '{}'); } catch (e) {}
+try { XREFS = JSON.parse(localStorage.getItem(XRKEY) || '{}'); } catch (e) {}
+
+async function wikiFetch(title) {
+  const u = 'https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=extracts&exintro=1&explaintext=1&titles=' + encodeURIComponent(title);
+  const r = await fetch(u);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const j = await r.json();
+  const pages = Object.values((j.query && j.query.pages) || {});
+  const pg = pages.find(p => p && !p.missing && p.extract);
+  if (!pg) return null;
+  return {
+    title: pg.title,
+    extract: pg.extract.replace(/\s+/g, ' ').trim().slice(0, 420),
+    url: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(pg.title.replace(/ /g, '_'))
+  };
+}
+async function wikiPull(pid) {
+  const slot = document.getElementById('wslot-' + pid);
+  if (!slot || slot.dataset.busy) return;
+  slot.dataset.busy = '1';
+  const title = WIKITITLE[pid] || LIBMAP[pid].name;
+  const q = encodeURIComponent(title);
+  slot.innerHTML = '<div class="wcard"><span class="wload">' + SPIN + ' pulling from Wikipedia\u2026</span></div>';
+  try {
+    let w = WIKI_CACHE[pid];
+    if (!w) { w = await wikiFetch(title); if (w) { WIKI_CACHE[pid] = w; saveJSON(WKEY, WIKI_CACHE); } }
+    if (!w) {
+      slot.innerHTML = '<div class="wcard wmiss">No direct Wikipedia article \u2014 <a class="rlink" target="_blank" rel="noopener" href="https://en.wikipedia.org/w/index.php?search=' + q + '">search Wikipedia \u2197</a></div>';
+    } else {
+      slot.innerHTML = '<div class="wcard"><div class="wsrc">WIKIPEDIA \u00B7 ' + esc(w.title) + '</div>' +
+        '<p class="wx">' + esc(humanize(w.extract)) + '...</p>' +
+        '<a class="rlink" target="_blank" rel="noopener" href="' + esc(w.url) + '">Continue on Wikipedia <span class="rlx">\u2197</span></a></div>';
+    }
+  } catch (e) {
+    slot.innerHTML = '<div class="wcard wmiss">Fetch blocked or offline \u2014 <a class="rlink" target="_blank" rel="noopener" href="https://en.wikipedia.org/w/index.php?search=' + q + '">open on Wikipedia \u2197</a></div>';
+  }
+  slot.dataset.busy = '';
+}
+function refChips(pid) {
+  const cur = (REFS[pid] || []).map(r =>
+    '<a class="rlink" target="_blank" rel="noopener" href="' + esc(r[1]) + '">' + esc(r[0]) + ' <span class="rlx">\u2197</span></a>').join('');
+  const cus = (XREFS[pid] || []).map((r, i) =>
+    '<span class="xrwrap"><a class="rlink" target="_blank" rel="noopener" href="' + esc(r.url) + '">' + esc(r.label) + ' <span class="rlx">\u2197</span></a>' +
+    '<button class="xdel" data-xref-del data-pid="' + pid + '" data-i="' + i + '" title="Remove this source">x</button></span>').join('');
+  return cur + cus;
+}
+function radarBlock(pid) {
+  const lib = LIBMAP[pid];
+  const refs = refChips(pid);
+  const q = encodeURIComponent(lib.name);
+  const srch = SOURCES.map(s =>
+    '<a class="rlink" target="_blank" rel="noopener" href="' + s[1].replace('{q}', q) + '">' + esc(s[0]) + '</a>').join('');
+  return '<div class="radar">' +
+    '<div class="radar-lab">KNOWLEDGE RADAR \u00B7 CONNECTED SOURCES</div>' +
+    '<div class="radar-row">' + refs + '</div>' +
+    '<div class="radar-row"><span class="radar-lab2">SEARCH WEB</span>' + srch +
+      '<button class="wbtn" data-wpull="' + pid + '" title="Fetch the Wikipedia intro for this pattern">' + ic('globe', 12) + 'Pull live summary</button></div>' +
+    '<div class="wslot" id="wslot-' + pid + '"></div></div>';
+}
+function bindKnowledgeBits() {
+  document.querySelectorAll('[data-wpull]').forEach(b => b.onclick = () => wikiPull(b.dataset.wpull));
+  document.querySelectorAll('[data-xref-del]').forEach(b => b.onclick = () => {
+    const pid = b.dataset.pid, i = +b.dataset.i;
+    (XREFS[pid] || []).splice(i, 1);
+    if (XREFS[pid] && !XREFS[pid].length) delete XREFS[pid];
+    saveJSON(XRKEY, XREFS);
+    render();
+  });
+}
+
+/* ============================== DIAGRAM ENGINE ============================== */
+const DGR = (x, y, w, h, o) => { o = o || {}; return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + (o.rx != null ? o.rx : 2) + '" class="dg-b ' + (o.c || '') + '"/>'; };
+const DGT = (x, y, s, o) => { o = o || {}; return '<text x="' + x + '" y="' + y + '" text-anchor="' + (o.a || 'middle') + '" class="dg-t ' + (o.c || '') + '">' + s + '</text>'; };
+const DGL = (x1, y1, x2, y2, c) => '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" class="' + (c || 'dg-b') + '"/>';
+function DGA(x1, y1, x2, y2, c) {
+  const ang = Math.atan2(y2 - y1, x2 - x1), s = 3.4, a1 = ang + 2.5, a2 = ang - 2.5;
+  return DGL(x1, y1, x2, y2, c) +
+    '<path d="M' + (x2 + s * Math.cos(a1)).toFixed(1) + ' ' + (y2 + s * Math.sin(a1)).toFixed(1) + ' L' + x2 + ' ' + y2 + ' L' + (x2 + s * Math.cos(a2)).toFixed(1) + ' ' + (y2 + s * Math.sin(a2)).toFixed(1) + '" class="' + (c || 'dg-b') + '"/>';
+}
+const DGD = (x, y, r, c) => '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" class="dg-b ' + (c || '') + '"/>';
+const DGDot = (x, y, c) => '<circle cx="' + x + '" cy="' + y + '" r="1.7" class="' + (c || 'dg-f') + '"/>';
+function DGCyl(x, y, w, h, c) {
+  const ry = Math.min(4, w * 0.22);
+  return '<ellipse cx="' + (x + w / 2) + '" cy="' + (y + ry) + '" rx="' + (w / 2) + '" ry="' + ry + '" class="dg-b ' + (c || '') + '"/>' +
+    '<path d="M' + x + ' ' + (y + ry) + ' v' + (h - 2 * ry) + ' a' + (w / 2) + ' ' + ry + ' 0 0 0 ' + w + ' 0 v' + (-(h - 2 * ry)) + '" class="dg-b ' + (c || '') + '"/>';
+}
+function DGQ(x, y, w, h, c) {
+  let s = '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + (h / 2) + '" class="dg-b ' + (c || '') + '"/>';
+  for (let i = x + 8; i < x + w - 3; i += 7) s += DGL(i, y + 2, i, y + h - 2, 'dg-h');
+  return s;
+}
+
+const DIAG = {
+  layered: () => DGR(30,6,60,12)+DGT(60,14,'PRESENTATION')+DGR(30,26,60,12)+DGT(60,34,'LOGIC')+DGR(30,46,60,12)+DGT(60,54,'DATA')+DGA(60,19,60,25)+DGA(60,39,60,45),
+  mvc: () => DGR(40,5,40,12)+DGT(60,13,'CONTROLLER')+DGR(12,42,34,12)+DGT(29,50,'MODEL')+DGR(74,42,34,12)+DGT(91,50,'VIEW')+DGA(50,18,36,41)+DGA(70,18,84,41)+DGA(47,48,73,48,'dg-d'),
+  mvvm: () => DGR(8,26,24,12)+DGT(20,34,'VIEW')+DGR(45,26,34,12)+DGT(62,34,'VIEWMODEL')+DGR(91,26,23,12)+DGT(102.5,34,'MODEL')+DGA(33,29,44,29)+DGA(46,35,34,35)+DGA(80,32,90,32),
+  clean: () => DGD(60,32,23,'dg-d')+DGD(60,32,15.5)+DGD(60,32,8)+DGDot(60,32,'dg-fa')+DGT(60,58,'DOMAIN')+DGA(18,32,47,32,'dg-a')+DGT(30,27,'DEPS','dg-ta'),
+  micro: () => DGR(40,4,40,10)+DGT(60,11,'GATEWAY')+DGR(8,26,30,12)+DGT(23,34,'USERS')+DGR(45,26,30,12)+DGT(60,34,'ORDERS')+DGR(82,26,30,12)+DGT(97,34,'BILLING')+DGA(50,14,23,25)+DGA(60,14,60,25)+DGA(70,14,97,25)+DGCyl(14,44,18,14)+DGCyl(51,44,18,14)+DGCyl(88,44,18,14),
+  monolith: () => DGR(22,10,76,44)+DGL(60,10,60,54)+DGL(22,32,98,32)+DGT(41,24,'MOD A')+DGT(79,24,'MOD B')+DGT(41,46,'MOD C')+DGT(79,46,'MOD D')+DGR(22,10,38,22,{c:'dg-a'})+DGA(4,32,21,32),
+  eda: () => DGL(14,32,106,32,'dg-bus')+DGDot(28,14)+DGDot(60,14)+DGDot(92,14)+DGA(28,17,28,28)+DGA(60,17,60,28)+DGA(92,17,92,28)+DGDot(44,50)+DGDot(76,50)+DGA(44,36,44,47)+DGA(76,36,76,47)+DGDot(36,32,'dg-fa')+DGDot(72,32,'dg-fa')+DGT(60,61,'EVENT BUS'),
+  queue: () => DGR(6,26,20,12)+DGT(16,34,'PUB')+DGQ(36,24,42,16)+DGR(86,26,28,12)+DGT(100,34,'CONSUMER')+DGA(26,32,35,32)+DGA(78,32,85,32)+DGR(46,48,22,10,{c:'dg-d'})+DGT(57,55,'DLQ')+DGA(57,41,57,47,'dg-d'),
+  cqrs: () => DGR(8,6,30,12)+DGT(23,14,'COMMAND')+DGR(82,6,30,12)+DGT(97,14,'QUERY')+DGCyl(50,26,20,26,'dg-a')+DGA(30,14,52,28)+DGA(68,28,90,14),
+  es: () => DGR(8,40,9,9)+DGR(19,40,9,9)+DGR(30,40,9,9)+DGR(41,40,9,9)+DGA(51,44.5,62,44.5)+DGR(78,10,34,12)+DGT(95,18,'STATE')+DGA(24,39,24,18,'dg-d')+DGA(24,18,76,18,'dg-d')+DGT(50,14.5,'REPLAY')+DGDot(45.5,34,'dg-fa')+DGA(45.5,36,45.5,39,'dg-a')+DGT(30,57,'EVENT LOG'),
+  saga: () => DGR(10,24,24,12)+DGT(22,32,'T1')+DGR(46,24,24,12)+DGT(58,32,'T2')+DGR(82,24,24,12)+DGT(94,32,'T3')+DGA(34,30,45,30)+DGA(70,30,81,30)+DGA(92,42,22,42,'dg-d')+DGT(57,52,'COMPENSATE')+'<path d="M55 19 l2.5 2.5 4.5-5.5" class="dg-a"/>',
+  gateway: () => DGR(6,17,16,10)+DGT(14,24,'C1')+DGR(6,37,16,10)+DGT(14,44,'C2')+'<polygon points="60,14 78,32 60,50 42,32" class="dg-a"/>'+DGT(60,34.5,'GW','dg-ta')+DGR(92,14,22,12)+DGT(103,22,'S1')+DGR(92,38,22,12)+DGT(103,46,'S2')+DGA(22,22,43,29)+DGA(22,42,43,35)+DGA(74,27,91,20)+DGA(74,37,91,42),
+  bff: () => DGR(6,6,22,10)+DGT(17,13,'WEB')+DGR(6,24,22,10)+DGT(17,31,'APP')+DGR(48,6,26,12,{c:'dg-a'})+DGT(61,14,'BFF','dg-ta')+DGR(48,24,26,12,{c:'dg-a'})+DGT(61,32,'BFF','dg-ta')+DGCyl(92,8,18,16)+DGCyl(92,32,18,16)+DGA(28,11,47,11)+DGA(28,29,47,29)+DGA(74,12,90,14)+DGA(74,28,90,38),
+  breaker: () => DGR(4,26,22,12)+DGT(15,34,'CALLER')+DGL(26,32,43,32)+DGDot(44,32)+DGL(44,32,58,20,'dg-a')+DGDot(59,32)+DGL(60,32,74,32)+'<path d="M79 26 l4 5 h-3 l4 5" class="dg-a"/>'+DGR(88,26,26,12)+DGT(101,34,'SERVICE')+DGT(52,15,'OPEN','dg-ta'),
+  retry: () => DGR(4,8,22,10)+DGT(15,15,'CALL')+DGA(15,19,27,23,'dg-d')+'<path d="M36 20 a12 12 0 1 0 12 12" class="dg-b"/><path d="M44.8 35.4 L48 32 L51.2 35.4" class="dg-b"/>'+DGT(36,34.5,'x n')+DGA(36,45,36,51)+DGR(23,52,26,10)+DGT(36,59,'SUCCESS'),
+  scaling: () => DGD(60,14,8)+DGT(60,16.5,'LB')+DGA(8,14,51,14)+DGR(14,40,24,12)+DGT(26,48,'N1')+DGR(48,40,24,12)+DGT(60,48,'N2')+DGR(82,40,24,12)+DGT(94,48,'N3')+DGA(54,20,26,39)+DGA(60,22,60,39)+DGA(66,20,94,39),
+  cache: () => DGR(4,26,20,12)+DGT(14,34,'APP')+DGR(36,24,24,16)+DGT(48,34,'CACHE')+DGCyl(88,20,22,24)+DGT(99,52,'STORE')+DGA(24,32,35,32)+DGA(61,32,86,32)+DGA(90,22,61,22,'dg-d')+DGD(74,13,4)+DGL(74,13,74,10)+DGL(74,13,76.4,14.4)+DGT(74,6.5,'TTL'),
+  cdn: () => DGCyl(6,24,20,20)+DGT(16,52,'ORIGIN')+DGD(52,14,6)+DGD(64,32,6)+DGD(52,50,6)+DGA(27,32,45,17,'dg-d')+DGA(27,34,57,32,'dg-d')+DGA(27,36,45,47,'dg-d')+DGA(71,32,95,32)+DGDot(100,32)+DGT(100,44,'USER')+DGT(64,62,'EDGE'),
+  serverless: () => DGR(4,26,22,12)+DGT(15,34,'EVENT')+DGR(38,8,74,48,{c:'dg-d',rx:6})+DGR(50,16,24,10,{c:'dg-a'})+DGT(62,23,'f 1','dg-ta')+DGR(50,29,24,10,{c:'dg-a'})+DGT(62,36,'f 2','dg-ta')+DGR(50,42,24,10,{c:'dg-a'})+DGT(62,49,'f 3','dg-ta')+DGA(26,30,48,21)+DGT(75,60,'MANAGED'),
+  containers: () => DGR(10,10,100,44,{c:'dg-d'})+DGT(60,7,'NODE')+DGR(20,22,22,22)+DGR(24,30,6,6)+DGR(32,30,6,6)+DGT(31,51,'POD')+DGR(49,22,22,22,{c:'dg-a'})+DGR(53,30,6,6)+DGR(61,30,6,6)+DGT(60,51,'POD')+DGR(78,22,22,22)+DGR(82,30,6,6)+DGR(90,30,6,6)+DGT(89,51,'POD'),
+  cicd: () => DGDot(8,32)+DGR(18,26,22,12)+DGT(29,34,'BUILD')+DGR(48,26,22,12)+DGT(59,34,'TEST')+DGR(78,26,26,12)+DGT(91,34,'DEPLOY')+DGA(10,32,17,32)+DGA(40,32,47,32)+DGA(70,32,77,32)+DGL(91,25,91,14,'dg-d')+DGL(91,14,29,14,'dg-d')+DGA(29,14,29,25,'dg-d')+'<path d="M56 20 l2.5 2.5 4.5-5.5" class="dg-a"/>',
+  strangler: () => DGR(14,16,92,36,{c:'dg-d'})+DGT(60,36,'LEGACY')+DGR(24,10,20,12,{c:'dg-a'})+DGT(34,18,'NEW','dg-ta')+DGR(50,10,20,12,{c:'dg-a'})+DGT(60,18,'NEW','dg-ta')+DGR(76,10,20,12,{c:'dg-a'})+DGT(86,18,'NEW','dg-ta')+DGA(2,16,22,16)+DGA(44,16,49,16,'dg-d')+DGA(70,16,75,16,'dg-d'),
+  mesh: () => DGL(36,16,84,16,'dg-h')+DGL(36,48,84,48,'dg-h')+DGL(30,22,30,42,'dg-h')+DGL(90,22,90,42,'dg-h')+DGL(34,20,86,44,'dg-h')+DGL(86,20,34,44,'dg-h')+DGD(30,16,5)+DGD(90,16,5)+DGD(30,48,5)+DGD(90,48,5)+DGR(36,12.5,4.5,4.5,{c:'dg-a'})+DGR(96,12.5,4.5,4.5,{c:'dg-a'})+DGR(36,44.5,4.5,4.5,{c:'dg-a'})+DGR(96,44.5,4.5,4.5,{c:'dg-a'}),
+  ddd: () => DGR(8,12,44,40,{rx:8})+DGR(68,12,44,40,{rx:8})+DGD(24,32,7)+DGDot(24,32)+DGT(30,48,'CONTEXT')+DGD(90,32,7)+DGDot(90,32)+DGT(96,48,'CONTEXT')+DGDot(60,32,'dg-fa')+DGA(52,32,56.5,32)+DGA(68,32,63.5,32)+DGT(60,25,'ACL','dg-ta'),
+  repo: () => DGR(38,6,44,12)+DGT(60,14,'DOMAIN')+DGR(38,26,44,12)+DGT(60,34,'REPOSITORY')+DGCyl(46,44,28,14)+DGA(52,19,52,25)+DGA(68,25,68,19)+DGA(60,39,60,46),
+  singleton: () => DGDot(12,20)+DGDot(12,32)+DGDot(12,44)+DGR(52,22,40,20)+DGT(72,34,'INSTANCE')+DGD(96,20,4.5,'dg-a')+DGT(96,22.5,'1','dg-ta')+DGA(14,20,51,28)+DGA(14,32,51,32)+DGA(14,44,51,36),
+  factory: () => DGR(4,26,22,12)+DGT(15,34,'CLIENT')+'<polygon points="62,16 82,32 62,48 42,32" class="dg-b"/>'+DGT(62,34.5,'FACTORY')+DGR(92,8,24,12)+DGT(104,16,'P1')+DGR(92,26,24,12,{c:'dg-a'})+DGT(104,34,'P2','dg-ta')+DGR(92,44,24,12)+DGT(104,52,'P3')+DGA(78,28,91,15)+DGA(80,32,91,32)+DGA(78,36,91,49),
+  observer: () => DGD(22,32,9)+DGDot(22,32)+DGT(22,50,'SUBJECT')+DGR(78,8,32,12)+DGT(94,16,'OBSERVER')+DGR(78,26,32,12)+DGT(94,34,'OBSERVER')+DGR(78,44,32,12)+DGT(94,52,'OBSERVER')+DGA(31,28,77,15,'dg-da')+DGA(31,32,77,32,'dg-da')+DGA(31,36,77,49,'dg-da'),
+  adapter: () => DGR(10,25,14,14)+DGR(42,22,32,20,{c:'dg-a'})+DGT(58,34,'ADAPTER','dg-ta')+DGD(100,32,9)+DGA(25,32,41,32)+DGA(75,32,90,32),
+  solid: () => DGR(8,25,17,14)+DGT(16.5,34,'S')+DGR(29,25,17,14)+DGT(37.5,34,'O')+DGR(50,25,17,14)+DGT(58.5,34,'L')+DGR(71,25,17,14)+DGT(79.5,34,'I')+DGR(92,25,17,14,{c:'dg-a'})+DGT(100.5,34,'D','dg-ta')+DGT(60,52,'PRINCIPLES'),
+  rest: () => DGR(4,26,22,12)+DGT(15,34,'CLIENT')+DGCyl(70,22,26,26)+DGT(83,56,'RESOURCE')+DGA(27,24,67,27,'dg-a')+DGT(33,20.5,'GET',{a:'start',c:'dg-ta'})+DGA(27,32,67,33)+DGT(33,29,'POST',{a:'start'})+DGA(27,40,67,40)+DGT(33,37,'DELETE',{a:'start'}),
+  grpc: () => DGR(6,24,26,16)+DGT(19,34,'CLIENT')+'<rect x="50" y="14" width="22" height="34" class="dg-b"/><path d="M66 14 v6 h6" class="dg-b"/>'+DGT(61,34,'.PROTO')+DGR(88,24,26,16)+DGT(101,34,'SERVER')+DGA(33,28,48,28)+DGA(72,28,87,28)+DGA(87,38,72,38)+DGA(48,38,33,38)+DGT(60,10,'HTTP/2'),
+  sharding: () => DGDot(60,10)+DGCyl(40,26,40,28)+DGL(53,30,53,50)+DGL(67,30,67,50)+DGT(46,44,'S1')+DGT(60,44,'S2')+DGT(74,44,'S3')+DGA(60,13,48,28)+DGA(60,13,60,28)+DGA(60,13,72,28)+DGT(68,9,'hash(k)',{a:'start'}),
+  cap: () => '<path d="M60 10 L94 52 L26 52 Z" class="dg-b"/>'+DGT(60,7,'C')+DGD(26,52,6,'dg-a')+DGT(26,54.5,'A','dg-ta')+DGT(98,55,'P'),
+  stream: () => '<path d="M8 32 q7 -10 14 0 t14 0 t14 0 t14 0 t14 0 t14 0" class="dg-b"/>'+DGR(50,18,24,28,{c:'dg-a'})+DGT(62,13,'WINDOW','dg-ta')+DGA(94,34,101,41)+DGCyl(98,40,16,14),
+  warehouse: () => DGCyl(6,12,16,16)+DGCyl(6,36,16,16)+'<polygon points="30,14 52,14 44,32 38,32" class="dg-b"/>'+DGA(22,20,31,19)+DGA(22,44,37,31)+DGA(41,33,41,41)+DGCyl(28,40,26,18)+DGA(55,49,93,49)+DGR(98,45,4,9)+DGR(104,41,4,13)+DGR(110,36,4,18,{c:'dg-a'})+DGL(96,54,116,54)+DGT(107,62,'BI')
+};
+function dsvg(pid) {
+  const f = DIAG[pid] || (() => DGR(10, 10, 100, 44));
+  return '<svg class="diag" viewBox="0 0 120 64" preserveAspectRatio="xMidYMid meet" aria-hidden="true">' + f() + '</svg>';
+}
+function anaBlock(pid) {
+  return '<div class="ana"><span class="ana-ic">' + ic('chat', 15) + '</span>' +
+    '<div><div class="ana-tag">IN PLAIN WORDS</div>' +
+    '<div class="ana-txt">' + esc(LIBMAP[pid].ana) + '</div></div></div>';
+}
+
+const TECHS = [
+['AWS','\\baws\\b|amazon web services'],['Azure','\\bazure\\b'],['GCP','\\bgcp\\b|google cloud'],['S3','\\bs3\\b'],
+['DynamoDB','dynamodb'],['PostgreSQL','postgres'],['MySQL','\\bmysql\\b'],['MongoDB','mongodb'],['Cassandra','cassandra'],
+['Redis','\\bredis\\b'],['Elasticsearch','elasticsearch'],['Kafka','\\bkafka\\b'],['RabbitMQ','rabbitmq'],['SQS','\\bsqs\\b'],
+['Kinesis','\\bkinesis\\b'],['Docker','\\bdocker\\b'],['Kubernetes','kubernetes|\\bk8s\\b'],['Helm','\\bhelm\\b'],
+['Terraform','\\bterraform\\b'],['Istio','\\bistio\\b'],['Envoy','\\benvoy\\b'],['nginx','nginx'],['GraphQL','\\bgraphql\\b'],
+['gRPC','\\bgrpc\\b'],['OpenAPI','openapi|swagger'],['JWT','\\bjwts?\\b'],['OAuth','\\boauth'],['React','\\breact\\b'],
+['Vue','\\bvue(\\.js)?\\b'],['Angular','\\bangular\\b'],['Next.js','next\\.?js'],['Node.js','node\\.?js'],
+['Spring Boot','spring (boot|cloud)'],['.NET','\\.net\\b'],['Django','django'],['Rails','\\brails\\b|ruby on rails'],
+['Laravel','laravel'],['Airflow','\\bairflow\\b'],['Spark','\\bspark\\b'],['Flink','\\bflink\\b'],['Snowflake','snowflake'],
+['BigQuery','bigquery'],['ClickHouse','clickhouse'],['Prometheus','prometheus'],['Grafana','grafana'],
+['OpenTelemetry','opentelemetry'],['Celery','\\bcelery\\b'],['GitHub Actions','github actions'],['CircleCI','circleci']
+].map(t => ({ name: t[0], re: new RegExp(t[1], 'gi') }));
+const TECHSET = new Set(TECHS.map(t => t.name.toLowerCase()));
+
+const STOP = new Set(('the and for with that this from are was were will would can could should may might must shall have has had not but all any each which who whom whose its it into onto over under between through during before after above below then than when while where what how why because since although though however therefore thus also both either neither every some such only just very more most much many less least own same other another per via within without across among against about along instead rather being been does did doing use used uses using based new one two three first second third figure table section chapter page example note see given following like well make made set get got put run need needs let say said way ways thing things lot part parts case cases point points line lines number order even still yet already here there these those they them their our your you we us i me my he she his her him is am be as at by in of on or to if so no nor a an up out off down back again once application applications app apps system systems architecture architectures architectural service services microservice microservices data design designs software code user users client clients server servers component components module modules pattern patterns approach approaches solution solutions business function functions functional process processes information different multiple several various including include includes provide provides allow allows ensure ensures typically usually often always never values value layer layers generally importantly versus eg ie etc').split(' '));
+
+const INTERVALS = [0, 1, 3, 8, 16];
+const BOXNAMES = ['New', 'Learning', 'Familiar', 'Solid', 'Mastered'];
+const TYPE_LABEL = { pdf:'PDF', docx:'DOCX', doc:'DOC', txt:'TXT', md:'MD', markdown:'MD', html:'HTML', htm:'HTML', rtf:'RTF',
+  pptx:'PPTX', ppt:'PPT', png:'IMG', jpg:'IMG', jpeg:'IMG', gif:'IMG', bmp:'IMG', webp:'IMG', avif:'IMG', svg:'IMG' };
+const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'avif']);
+const ACCEPT_EXT = new Set(Object.keys(TYPE_LABEL));
+
+/* ============================== ANALYSIS ENGINE ============================== */
+function splitSentences(text) {
+  const spans = []; let a = 0;
+  const flush = b => { if (b > a) spans.push({ a, b }); a = b; };
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if ((c === '.' || c === '!' || c === '?') && (i + 1 >= text.length || text[i + 1] === ' ' || text[i + 1] === '\n')) flush(i + 1);
+  }
+  flush(text.length);
+  const merged = [];
+  for (const s of spans) {
+    const p = merged[merged.length - 1];
+    if (p && s.b - s.a < 25) { p.b = s.b; continue; }
+    merged.push({ a: s.a, b: s.b });
+  }
+  const out = [];
+  for (const s of merged) {
+    let seg = s.a;
+    while (s.b - seg > 480) {
+      let cut = text.lastIndexOf(' ', seg + 420);
+      if (cut <= seg + 100) cut = seg + 420;
+      out.push({ a: seg, b: cut }); seg = cut;
+    }
+    out.push({ a: seg, b: s.b });
+  }
+  return out.map(sp => ({ t: text.slice(sp.a, sp.b).replace(/\s+/g, ' ').trim(), a: sp.a, b: sp.b }))
+            .filter(x => x.t.length >= 20).slice(0, 6000);
+}
+
+function analyze(text) {
+  const S = splitSentences(text);
+  const hits = [];
+  const cre = new RegExp('(?:' + COMBINED_SRC + ')', 'gi');
+  let m;
+  while ((m = cre.exec(text))) { if (m[0].length) hits.push({ i: m.index, s: m[0] }); else cre.lastIndex++; }
+
+  const st = LIB.map(() => ({ raw: 0, terms: new Map(), sentHits: new Map() }));
+  const allTerms = new Map(), hlSet = new Set();
+  let sp = 0, hitCount = 0;
+  const sentOf = i => { while (sp < S.length - 1 && i >= S[sp].b) sp++; return sp; };
+
+  for (const h of hits) {
+    let attributed = false; const l = h.s.toLowerCase();
+    for (let pi = 0; pi < LIB.length; pi++) {
+      let any = false;
+      for (const sg of LIB[pi].sigs) if (sg.rt.test(h.s)) { st[pi].raw += sg.w; any = true; }
+      if (any) {
+        attributed = true;
+        const tm = st[pi].terms; tm.set(l, (tm.get(l) || 0) + 1);
+        const si = sentOf(h.i);
+        let set = st[pi].sentHits.get(si);
+        if (!set) { set = new Set(); st[pi].sentHits.set(si, set); }
+        set.add(l);
+      }
+    }
+    if (attributed) { hitCount++; allTerms.set(l, (allTerms.get(l) || 0) + 1); hlSet.add(l); }
+  }
+
+  const techs = [];
+  for (const t of TECHS) {
+    const mm = text.match(t.re);
+    if (mm && mm.length) { techs.push({ name: t.name, n: mm.length }); hlSet.add(mm[0].toLowerCase()); }
+  }
+  techs.sort((a, b) => b.n - a.n);
+
+  const patterns = [];
+  for (let pi = 0; pi < LIB.length; pi++) {
+    if (st[pi].raw < 2) continue;
+    const conf = Math.min(0.97, 1 - Math.exp(-st[pi].raw / 9));
+    const cands = [...st[pi].sentHits.entries()].map(([si, terms]) => {
+      const s = S[si]; if (!s) return null;
+      let score = 0;
+      for (const sg of LIB[pi].sigs) if (sg.rt.test(s.t)) score += sg.w;
+      score += Math.min(3, terms.size) * 0.5;
+      return { si, score, terms: [...terms] };
+    }).filter(Boolean).sort((a, b) => b.score - a.score);
+    const ev = []; const seen = new Set();
+    for (const c of cands) {
+      const key = c.terms.join('|') + c.si;
+      if (seen.has(key)) continue; seen.add(key);
+      ev.push({ q: S[c.si].t.slice(0, 320), terms: c.terms });
+      if (ev.length >= 3) break;
+    }
+    patterns.push({
+      id: LIB[pi].id, score: Math.round(st[pi].raw), conf: +conf.toFixed(3),
+      terms: [...st[pi].terms.entries()].map(x => ({ t: x[0], n: x[1] })).sort((a, b) => b.n - a.n).slice(0, 6),
+      evidence: ev, box: 0, lastSeen: 0
+    });
+  }
+  patterns.sort((a, b) => b.score - a.score);
+
+  const hilite = [...hlSet].filter(t => t.length >= 3).sort((a, b) => b.length - a.length).slice(0, 380);
+
+  const toks = (text.toLowerCase().match(/[a-z][a-z0-9&'-]{1,18}/g) || [])
+    .map(w => w.replace(/^['&-]+|['&.-]+$/g, '')).filter(w => w.length > 2 && !/^\d+$/.test(w));
+  const pass = w => w.length > 2 && !STOP.has(w) && !TECHSET.has(w);
+  const freq = new Map();
+  for (const w of toks) if (pass(w)) freq.set(w, (freq.get(w) || 0) + 1);
+  let terms = [...freq.entries()].filter(x => x[1] >= 2).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  if (terms.length < 4) terms = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const bg = new Map();
+  for (let i = 0; i < toks.length - 1; i++) {
+    if (pass(toks[i]) && pass(toks[i + 1])) {
+      const k = toks[i] + ' ' + toks[i + 1];
+      bg.set(k, (bg.get(k) || 0) + 1);
+    }
+  }
+  const phrases = [...bg.entries()].filter(x => x[1] >= 2).sort((a, b) => b[1] - a[1]).slice(0, 6);
+
+  const words = (text.match(/\S+/g) || []).length;
+  return {
+    patterns,
+    techs: techs.slice(0, 18),
+    concepts: { phrases, terms },
+    topTerms: [...allTerms.entries()].map(x => ({ t: x[0], n: x[1] })).sort((a, b) => b.n - a.n).slice(0, 12),
+    hilite,
+    stats: { chars: text.length, words, hits: hitCount }
+  };
+}
+
+function markFactory(terms) {
+  if (!terms || !terms.length) return t => esc(t);
+  const re = new RegExp('(' + terms.slice().sort((a, b) => b.length - a.length).map(escRe).join('|') + ')', 'gi');
+  return t => esc(t).replace(re, '<mark>$1</mark>');
+}
+
+/* ============================== STORAGE ============================== */
+const KEY = 'focusedlearning_kb_v1';
+const LEGACY_KEYS = ['deanthonize_kb_v1', 'trace_kb_v1'];
+let store = { v: 1, docs: [] };
+try {
+  let raw = localStorage.getItem(KEY);
+  if (!raw) for (const lk of LEGACY_KEYS) { raw = localStorage.getItem(lk); if (raw) break; }
+  if (raw) store = JSON.parse(raw);
+} catch (e) {}
+let quotaWarned = false;
+
+function saveStore() {
+  const attempt = trunc => {
+    const data = { v: 1, docs: store.docs.map(d => trunc && d.text && d.text.length > trunc ? Object.assign({}, d, { text: d.text.slice(0, trunc), truncated: true }) : d) };
+    localStorage.setItem(KEY, JSON.stringify(data));
+  };
+  try { attempt(0); }
+  catch (e) {
+    try { attempt(40000); }
+    catch (e2) {
+      try { attempt(8000); }
+      catch (e3) {
+        if (!quotaWarned) { toast('Browser storage is full - captures are kept for this session only.', 'error'); quotaWarned = true; }
+      }
+    }
+  }
+}
+const getDoc = id => store.docs.find(d => d.id === id);
+const isDue = p => (Date.now() - p.lastSeen) / 864e5 >= INTERVALS[p.box];
+function dueAll() { let n = 0; for (const d of store.docs) for (const p of d.analysis.patterns) if (isDue(p)) n++; return n; }
+
+/* aggregate detected patterns across a scope - shared by Atlas + graph model */
+function radarAgg(scope) {
+  const docs = scope === 'all' ? store.docs : store.docs.filter(d => d.id === scope);
+  const m = new Map();
+  for (const d of docs) for (const p of d.analysis.patterns) {
+    let e = m.get(p.id);
+    if (!e) { e = { score: 0, docs: [], best: null }; m.set(p.id, e); }
+    e.score += p.score;
+    e.docs.push({ id: d.id, name: d.name, conf: p.conf });
+    if (!e.best || p.conf > e.best.conf) e.best = { conf: p.conf, ev: p.evidence[0], doc: d.name };
+  }
+  return m;
+}
+
+/* ============================== GRAPH MODEL ============================== */
+function gLayout(ns, es) {
+  const W = 640, H = 330, cx = W / 2, cy = H / 2;
+  ns.forEach((n, i) => {
+    const a = (i / ns.length) * Math.PI * 2 + 0.45;
+    n.x = cx + Math.cos(a) * W * 0.30; n.y = cy + Math.sin(a) * H * 0.32; n.vx = 0; n.vy = 0;
+  });
+  for (let it = 0; it < 150; it++) {
+    for (let i = 0; i < ns.length; i++) for (let j = i + 1; j < ns.length; j++) {
+      const A = ns[i], B = ns[j];
+      let dx = A.x - B.x, dy = A.y - B.y;
+      let d2 = dx * dx + dy * dy; if (d2 < 1) d2 = 1;
+      const d = Math.sqrt(d2), f = 2800 / d2;
+      dx /= d; dy /= d;
+      A.vx += dx * f; A.vy += dy * f; B.vx -= dx * f; B.vy -= dy * f;
+    }
+    es.forEach(e => {
+      const A = e.A, B = e.B;
+      let dx = B.x - A.x, dy = B.y - A.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      const f = (d - 125) * 0.02;
+      dx /= d; dy /= d;
+      A.vx += dx * f; A.vy += dy * f; B.vx -= dx * f; B.vy -= dy * f;
+    });
+    ns.forEach(n => {
+      n.vx += (cx - n.x) * 0.004; n.vy += (cy - n.y) * 0.004;
+      n.vx *= 0.86; n.vy *= 0.86;
+      n.x += n.vx; n.y += n.vy;
+      n.x = Math.max(72, Math.min(W - 72, n.x));
+      n.y = Math.max(44, Math.min(H - 36, n.y));
+    });
+  }
+}
+function graphHover(pid) {
+  const svg = $('#gsvg'); if (!svg) return;
+  if (!pid) {
+    svg.classList.remove('dim');
+    svg.querySelectorAll('.gnode.dim').forEach(x => x.classList.remove('dim'));
+    svg.querySelectorAll('.gedge.lit').forEach(x => x.classList.remove('lit'));
+    return;
+  }
+  svg.classList.add('dim');
+  svg.querySelectorAll('.gnode').forEach(n => n.classList.toggle('dim', n.dataset.pid !== pid));
+  svg.querySelectorAll('.gedge').forEach(e => e.classList.toggle('lit', e.dataset.a === pid || e.dataset.b === pid));
+}
+function graphModelHTML(pats) {
+  if (!pats || pats.length < 2) return '';
+  const det = pats.slice(0, 12);
+  const detSet = new Set(det.map(p => p.id));
+  const ctxIds = [];
+  for (const [a, b] of EDGES) {
+    if (ctxIds.length >= 5) break;
+    const inA = detSet.has(a), inB = detSet.has(b);
+    if (inA !== inB) {
+      const other = inA ? b : a;
+      if (!detSet.has(other) && !ctxIds.includes(other)) ctxIds.push(other);
+    }
+  }
+  const nodes = det.map(p => ({ id: p.id, conf: p.conf, ctx: false }))
+    .concat(ctxIds.map(id => ({ id, conf: 0, ctx: true })));
+  const map = {}; nodes.forEach(n => map[n.id] = n);
+  const es = EDGES.filter(([a, b]) => map[a] && map[b]).map(([a, b]) => ({ a, b, A: map[a], B: map[b] }));
+  gLayout(nodes, es);
+  const cats = [...new Set(det.map(p => LIBMAP[p.id].cat))];
+  let s = '<svg id="gsvg" class="gsvg" viewBox="0 0 640 330" role="img">';
+  es.forEach(e => {
+    s += '<line class="gedge" data-a="' + e.a + '" data-b="' + e.b + '" x1="' + e.A.x.toFixed(1) + '" y1="' + e.A.y.toFixed(1) + '" x2="' + e.B.x.toFixed(1) + '" y2="' + e.B.y.toFixed(1) + '"/>';
+  });
+  nodes.forEach(n => {
+    const lib = LIBMAP[n.id];
+    const r = n.ctx ? 5 : 7 + Math.round(n.conf * 5);
+    const col = n.ctx ? 'var(--line-2)' : (CATCOL[lib.cat] || '#544D3D');
+    const lab = lib.name.length > 20 ? lib.name.slice(0, 19) + '...' : lib.name;
+    s += '<g class="gnode" data-pid="' + n.id + '"><title>' + esc(lib.name) + (n.ctx ? ' (related, not in this document)' : '') + '</title>' +
+      '<circle cx="' + n.x.toFixed(1) + '" cy="' + n.y.toFixed(1) + '" r="' + r + '" fill="' + (n.ctx ? 'var(--card)' : col) + '" stroke="' + col + '" stroke-width="' + (n.ctx ? 1 : 1.4) + '"' + (n.ctx ? ' stroke-dasharray="2.5 2.5"' : '') + '/>' +
+      '<text x="' + n.x.toFixed(1) + '" y="' + (n.y + r + 11).toFixed(1) + '" text-anchor="middle">' + esc(lab) + '</text></g>';
+  });
+  s += '</svg>';
+  return '<div class="gmodel"><div class="ghead"><span class="gtitle">Graph model</span>' +
+    '<span class="gsub">' + det.length + ' DETECTED NODES \u00B7 ' + es.length + ' RELATIONSHIP EDGES' + (ctxIds.length ? ' \u00B7 ' + ctxIds.length + ' CONTEXT NODES' : '') + '</span></div>' +
+    s +
+    '<div class="radar-row" style="margin-top:10px">' + cats.map(c => '<span class="sig-chip" style="border-color:' + (CATCOL[c] || '#544D3D') + '55">' + esc(c) + '</span>').join('') + '</div>' +
+    '<div class="gcap">Solid nodes are patterns detected in this artifact (size shows confidence). Dashed nodes are related patterns the document does NOT use - useful gaps to notice. Hover a node to trace its connections.</div></div>';
+}
+
+/* ============================== STATE & ROUTER ============================== */
+const state = { view: 'home', docId: null, q: '', atlasCat: 'all', focusPid: null,
+  recall: { scope: 'all', session: null, autostart: false } };
+
+function render() {
+  const m = $('#main');
+  if (state.view === 'home') { m.innerHTML = viewHome(); bindHome(); }
+  else if (state.view === 'doc') { m.innerHTML = viewDoc(state.docId); bindDoc(); }
+  else if (state.view === 'atlas') { m.innerHTML = viewAtlas(); bindAtlas(); }
+  else if (state.view === 'recall') { m.innerHTML = viewRecall(); bindRecall(); }
+  m.scrollTop = 0;
+  renderSidebar();
+}
+
+function renderSidebar() {
+  const sb = $('#sidebar');
+  if (!sb.dataset.built) {
+    sb.innerHTML =
+      '<div class="sb-head">' + LOGO + '<div><div class="wordmark"><b>FOCUSED</b>LEARNING</div><div class="wordsub">CAPTURE \u00B7 CONNECT \u00B7 RETAIN</div></div></div>' +
+      '<button class="add-slot" id="addSlot">' + ic('plus', 13) + 'Capture a document</button>' +
+      '<div class="sb-search">' + ic('search', 14) + '<input id="sbSearch" placeholder="Search the knowledgebase" value="' + esc(state.q) + '"></div>' +
+      '<nav class="sb-nav">' +
+        '<button class="nav-item" data-nav="docs">' + ic('file', 14) + 'Documents<span class="cnt" id="cntDocs"></span></button>' +
+        '<button class="nav-item" data-nav="atlas">' + ic('layers', 14) + 'Pattern atlas<span class="cnt" id="cntPatterns"></span></button>' +
+        '<button class="nav-item" data-nav="recall">' + ic('refresh', 14) + 'Recall practice<span class="due" id="cntDue" hidden></span></button>' +
+      '</nav>' +
+      '<div class="list-label">KNOWLEDGE BASE</div>' +
+      '<div class="sb-list" id="docList"></div>' +
+      '<div class="sb-foot"><div class="st-row"><span>LOCAL STORAGE</span><span id="stVal"></span></div>' +
+      '<div class="st-track"><div class="st-fill" id="stFill"></div></div>' +
+      '<div class="foot-btns"><button id="btnExport">Export</button><button id="btnImport">Import</button></div></div>';
+    sb.dataset.built = '1';
+    $('#addSlot').onclick = () => $('#fileInput').click();
+    $('#sbSearch').addEventListener('input', e => { state.q = e.target.value; renderDocList(); });
+    sb.querySelectorAll('.nav-item').forEach(b => b.onclick = () => {
+      const nav = b.dataset.nav;
+      if (nav === 'docs') { state.view = store.docs.length ? 'doc' : 'home'; state.docId = store.docs.length ? newest().id : null; }
+      else state.view = nav;
+      state.recall.session = null;
+      closeMobile(); render();
+    });
+    $('#btnExport').onclick = exportKB;
+    $('#btnImport').onclick = () => $('#importInput').click();
+    $('#importInput').onchange = importKB;
+    $('#docList').addEventListener('click', e => {
+      const card = e.target.closest('.dg-card,.dg-chip,.dg-more');
+      if (card) {
+        state.view = 'doc'; state.docId = card.dataset.doc;
+        state.focusPid = card.dataset.pid || null;
+        closeMobile(); render(); return;
+      }
+      const it = e.target.closest('.doc-item');
+      if (it) { state.view = 'doc'; state.docId = it.dataset.id; state.focusPid = null; closeMobile(); render(); }
+    });
+  }
+  const newest = () => store.docs.slice().sort((a, b) => b.addedAt - a.addedAt)[0];
+  $('#cntDocs').textContent = store.docs.length;
+  const pSeen = new Set(); store.docs.forEach(d => d.analysis.patterns.forEach(p => pSeen.add(p.id)));
+  $('#cntPatterns').textContent = pSeen.size;
+  const due = dueAll();
+  const cd = $('#cntDue'); cd.hidden = !due; cd.textContent = due;
+  sb.querySelectorAll('.nav-item').forEach(b => {
+    b.classList.toggle('active', (b.dataset.nav === 'docs' && (state.view === 'doc' || state.view === 'home' || state.view === 'processing')) || b.dataset.nav === state.view);
+  });
+  let bytes = 0; try { bytes = (localStorage.getItem(KEY) || '').length * 2; } catch (e) {}
+  $('#stVal').textContent = fmtBytes(bytes);
+  $('#stFill').style.width = Math.min(100, bytes / 5e6 * 100) + '%';
+  renderDocList();
+}
+
+function renderDocList() {
+  const list = $('#docList'); if (!list) return;
+  const q = state.q.trim().toLowerCase();
+  const docs = store.docs.slice().sort((a, b) => b.addedAt - a.addedAt);
+  const vis = docs.filter(d => !q ||
+    d.name.toLowerCase().includes(q) ||
+    d.analysis.patterns.some(p => LIBMAP[p.id].name.toLowerCase().includes(q)) ||
+    (d.text || '').toLowerCase().includes(q));
+  if (!docs.length) { list.innerHTML = '<div class="sb-empty">Nothing captured yet.<br>Drop a PDF, PPTX, DOCX, image \u2014 or paste a GitHub repo URL.</div>'; return; }
+  if (!vis.length) { list.innerHTML = '<div class="sb-empty">No matches for \u201C' + esc(state.q) + '\u201D</div>'; return; }
+  list.innerHTML = vis.map((d, i) => {
+    const active = state.view === 'doc' && state.docId === d.id;
+    const pats = d.analysis.patterns;
+    let dgHtml;
+    if (!pats.length) {
+      dgHtml = '<div class="dg-empty">No architecture signals detected in this artifact.</div>';
+    } else if (active) {
+      const show = pats.slice(0, 10);
+      dgHtml = '<div class="dg-label">PATTERN DIAGRAMS \u00B7 ' + pats.length + '</div><div class="dg-cards">' +
+        show.map(p => '<button class="dg-card" data-doc="' + d.id + '" data-pid="' + p.id + '" title="Open in document">' +
+          dsvg(p.id) +
+          '<span class="dg-meta"><span class="dg-name">' + esc(LIBMAP[p.id].name) + '</span><span class="dg-conf">' + Math.round(p.conf * 100) + '%</span></span></button>').join('') +
+        (pats.length > 10 ? '<button class="dg-more" data-doc="' + d.id + '">+' + (pats.length - 10) + ' MORE IN DOCUMENT \u2192</button>' : '') +
+        '</div>';
+    } else {
+      const show = pats.slice(0, 6);
+      dgHtml = '<div class="dg-strip">' +
+        show.map(p => '<button class="dg-chip" data-doc="' + d.id + '" data-pid="' + p.id + '" title="' + esc(LIBMAP[p.id].name) + ' \u00B7 ' + Math.round(p.conf * 100) + '%">' + dsvg(p.id) + '</button>').join('') +
+        (pats.length > 6 ? '<span class="dg-more-mini">+' + (pats.length - 6) + '</span>' : '') +
+        '</div>';
+    }
+    return '<div class="doc-item' + (active ? ' active' : '') + '" data-id="' + d.id + '">' +
+      '<div class="doc-top"><span class="doc-idx">' + String(i + 1).padStart(3, '0') + '</span><span class="doc-name">' + esc(d.name) + '</span></div>' +
+      '<div class="doc-meta">' + pats.length + ' PATTERNS \u00B7 ' + fmtK(d.analysis.stats.words) + ' WORDS \u00B7 ' + fmtDate(d.addedAt).toUpperCase() + '</div>' +
+      dgHtml +
+    '</div>';
+  }).join('');
+}
+
+/* ============================== FILE HANDLING ============================== */
+let queue = [], processing = false;
+function handleFiles(fileList) {
+  const files = [...fileList].filter(f => ACCEPT_EXT.has((f.name.split('.').pop() || '').toLowerCase()));
+  if (!files.length) { toast('No supported files found - I read PDF, DOCX, PPTX, images (OCR), TXT, MD, HTML and RTF.', 'error'); return; }
+  queue.push(...files);
+  if (!processing) runQueue();
+}
+async function runQueue() {
+  if (processing) return;
+  processing = true;
+  try {
+    while (queue.length) {
+      const file = queue.shift();
+      try { await processOne(file); }
+      catch (error) {
+        showReadFailure(file, error);
+      }
+    }
+  } finally { processing = false; }
+}
+function showReadFailure(file, error) {
+  const message = 'Could not read "' + file.name + '": ' + (error.message || 'Unknown error');
+  const note = $('#pNote');
+  if (note) {
+    note.textContent = message + ' ';
+    const retry = document.createElement('button');
+    retry.className = 'btn'; retry.textContent = 'Retry file';
+    retry.onclick = () => handleFiles([file]); note.appendChild(retry);
+  }
+  toast(message, 'error');
+}
+function stripBinary(t) { return t.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/[ \t]+/g, ' '); }
+function stripRtf(t) { return t.replace(/\\'([0-9a-f]{2})/gi, ' ').replace(/\\[a-z]+-?\d*\s?/gi, ' ').replace(/[{}]/g, ' ').replace(/\\\\/g, ''); }
+
+const OCR_MAX_DIM = 2200;
+
+async function imageToCanvas(file, maxDim) {
+  let srcW, srcH, source;
+  if (window.createImageBitmap) {
+    const bmp = await createImageBitmap(file);
+    srcW = bmp.width; srcH = bmp.height; source = bmp;
+  } else {
+    const url = URL.createObjectURL(file);
+    try {
+      source = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('unreadable image')); im.src = url; });
+      srcW = source.naturalWidth || source.width; srcH = source.naturalHeight || source.height;
+    } finally { setTimeout(() => URL.revokeObjectURL(url), 5000); }
+  }
+  const s = Math.min(1, maxDim / Math.max(srcW, srcH, 1));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(srcW * s)); c.height = Math.max(1, Math.round(srcH * s));
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(source, 0, 0, c.width, c.height);
+  if (source.close) try { source.close(); } catch (e) {}
+  return { canvas: c, w: srcW, h: srcH };
+}
+
+function linesToSentences(t) {
+  return t.split(/[\r\n]+/).map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean)
+          .map(s => /[.!?]$/.test(s) ? s : s + '.').join(' ');
+}
+
+const ocrLog = on => m => {
+  if (!on || !m || !m.status) return;
+  on(m.status === 'recognizing text' ? 'OCR \u00B7 ' + Math.round((m.progress || 0) * 100) + '%' : m.status.replace(/[_-]+/g, ' ') + '...');
+};
+async function makeOcrWorker(log) {
+  if (!window.Tesseract) return 'off';
+  try { return await Tesseract.createWorker('eng', 1, { logger: log }); }
+  catch (e) { return 'fallback'; }
+}
+async function ocrOnce(src, w, log) {
+  if (w && w !== 'off' && w !== 'fallback') { const r = await w.recognize(src); return (r.data && r.data.text) || ''; }
+  const r = await Tesseract.recognize(src, 'eng', { logger: log });
+  return (r.data && r.data.text) || '';
+}
+async function endOcrWorker(w) { if (w && w.terminate) try { await w.terminate(); } catch (e) {} }
+
+function utf16Runs(buf, minRun) {
+  const u8 = new Uint8Array(buf);
+  let out = '', run = '';
+  const flush = () => { if (run.replace(/\s+/g, '').length >= (minRun || 6)) out += run.replace(/\s+/g, ' ').trim() + '\n'; run = ''; };
+  for (let i = 0; i + 1 < u8.length; i += 2) {
+    const c = u8[i] | (u8[i + 1] << 8);
+    const ok = (c >= 32 && c < 127) || c === 9 || c === 10 || c === 13;
+    if (ok) run += String.fromCharCode(c); else flush();
+  }
+  flush();
+  return out;
+}
+
+function xmlParagraphs(xml) {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  const ps = doc.getElementsByTagName('a:p');
+  const lines = [];
+  for (let i = 0; i < ps.length; i++) {
+    const ts = ps[i].getElementsByTagName('a:t');
+    let s = '';
+    for (let j = 0; j < ts.length; j++) s += ts[j].textContent || '';
+    s = s.replace(/\s+/g, ' ').trim();
+    if (s) lines.push(s);
+  }
+  return lines;
+}
+async function pptxToText(buf, onProgress) {
+  if (!window.JSZip) throw new Error('PPTX engine failed to load (offline?)');
+  const zip = await JSZip.loadAsync(buf);
+  const num = n => +n.match(/(\d+)\.xml$/)[1];
+  const slideNames = Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n)).sort((a, b) => num(a) - num(b));
+  let out = '', nSlides = 0;
+  for (const n of slideNames) {
+    const lines = xmlParagraphs(await zip.file(n).async('string'));
+    if (lines.length) { out += linesToSentences(lines.join('\n')) + '\n\n'; nSlides++; }
+    if (onProgress) onProgress('slide ' + (slideNames.indexOf(n) + 1) + ' / ' + slideNames.length);
+  }
+  const noteNames = Object.keys(zip.files).filter(n => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(n)).sort((a, b) => num(a) - num(b));
+  for (const n of noteNames) {
+    const lines = xmlParagraphs(await zip.file(n).async('string'));
+    if (lines.length) out += linesToSentences(lines.join('\n')) + '\n\n';
+  }
+  let mediaOcred = 0;
+  {
+    const mediaNames = Object.keys(zip.files).filter(n => /^ppt\/media\/.*\.(png|jpe?g|gif|bmp)$/i.test(n) && !zip.files[n].dir).slice(0, 40);
+    const blobs = [];
+    for (const n of mediaNames) {
+      if (blobs.length >= 10) break;
+      const blob = await zip.file(n).async('blob');
+      if (blob.size >= 25000) blobs.push(blob);
+    }
+    if (blobs.length) {
+      try {
+      await ensureReader('Tesseract', onProgress);
+      const log = ocrLog(onProgress);
+      const w = await makeOcrWorker(log);
+      for (let i = 0; i < blobs.length; i++) {
+        if (onProgress) onProgress('OCR media ' + (i + 1) + ' / ' + blobs.length);
+        try { const t = await ocrOnce(blobs[i], w, log); if (t && t.trim()) { out += linesToSentences(t) + '\n\n'; mediaOcred++; } } catch (e) {}
+      }
+      await endOcrWorker(w);
+      } catch (error) {
+        if (!out.trim()) throw error;
+        toast('Slide text was read, but embedded image OCR was unavailable.', 'error');
+      }
+    }
+  }
+  return { text: out, slides: nSlides, mediaOcred };
+}
+
+function svgTextContent(src) {
+  try {
+    const doc = new DOMParser().parseFromString(src, 'image/svg+xml');
+    if (doc.getElementsByTagName('parsererror').length) return '';
+    const out = [];
+    const push = el => {
+      const s = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (s) out.push(/[.!?]$/.test(s) ? s : s + '.');
+    };
+    doc.querySelectorAll('text').forEach(el => { if (!el.querySelector('tspan')) push(el); });
+    doc.querySelectorAll('tspan').forEach(push);
+    doc.querySelectorAll('title,desc').forEach(push);
+    return out.join(' ');
+  } catch (e) { return ''; }
+}
+
+async function extract(file, onProgress) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'pdf') await ensureReader('pdfjsLib', onProgress);
+  if (ext === 'docx') await ensureReader('mammoth', onProgress);
+  if (ext === 'pptx') await ensureReader('JSZip', onProgress);
+  if (IMAGE_EXT.has(ext) && ext !== 'svg') await ensureReader('Tesseract', onProgress);
+  if (ext === 'pdf') {
+    if (!window.pdfjsLib) throw new Error('PDF engine failed to load (offline?)');
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+    let text = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const pg = await pdf.getPage(i);
+      const tc = await pg.getTextContent();
+      text += tc.items.map(it => it.str).join(' ') + '\n\n';
+      if (onProgress) onProgress('page ' + i + ' / ' + pdf.numPages);
+    }
+    if (!text.trim()) {
+      await ensureReader('Tesseract', onProgress);
+      if (onProgress) onProgress('scanned PDF \u00B7 preparing OCR...');
+      const log = ocrLog(onProgress);
+      const w = await makeOcrWorker(log);
+      let ocr = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        if (onProgress) onProgress('OCR page ' + i + ' / ' + pdf.numPages);
+        const pg = await pdf.getPage(i);
+        const v1 = pg.getViewport({ scale: 1 });
+        const scale = Math.min(2.5, Math.max(1.2, OCR_MAX_DIM / Math.max(v1.width, v1.height)));
+        const vp = pg.getViewport({ scale });
+        const c = document.createElement('canvas');
+        c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
+        await pg.render({ canvasContext: c.getContext('2d', { willReadFrequently: true }), viewport: vp }).promise;
+        try { ocr += (await ocrOnce(c, w, log)).replace(/\s*\n\s*/g, ' ').trim() + '\n\n'; } catch (e) {}
+      }
+      await endOcrWorker(w);
+      if (ocr.replace(/\s+/g, '').length > text.replace(/\s+/g, '').length) text = ocr;
+      return { text, pages: pdf.numPages, ocr: true };
+    }
+    return { text, pages: pdf.numPages };
+  }
+  if (ext === 'docx') {
+    if (!window.mammoth) throw new Error('DOCX engine failed to load (offline?)');
+    const r = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+    return { text: r.value };
+  }
+  if (ext === 'pptx') {
+    const r = await pptxToText(await file.arrayBuffer(), onProgress);
+    let note = r.slides + ' slides';
+    if (r.mediaOcred) note += ' \u00B7 OCR x' + r.mediaOcred;
+    return { text: r.text, slides: r.slides, note };
+  }
+  if (ext === 'ppt') {
+    const t = utf16Runs(await file.arrayBuffer(), 6);
+    const text = t.replace(/\s+/g, '').length >= 200 ? t : stripBinary(await file.text());
+    return { text, note: 'legacy .ppt \u00B7 best-effort' };
+  }
+  if (ext === 'doc') {
+    const t = utf16Runs(await file.arrayBuffer(), 6);
+    const text = t.replace(/\s+/g, '').length >= 200 ? t : stripBinary(await file.text());
+    return { text, note: 'legacy .doc \u00B7 best-effort' };
+  }
+  if (ext === 'rtf') return { text: stripRtf(await file.text()), note: 'RTF \u00B7 best-effort' };
+  if (ext === 'html' || ext === 'htm') {
+    const div = document.createElement('div');
+    div.innerHTML = (await file.text()).replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
+    return { text: div.textContent || '' };
+  }
+  if (ext === 'svg') return { text: svgTextContent(await file.text()), note: 'SVG text' };
+  if (IMAGE_EXT.has(ext)) {
+    if (!window.Tesseract) throw new Error('OCR engine failed to load (offline?)');
+    if (onProgress) onProgress('OCR engine \u00B7 first run downloads the model (~10 MB)');
+    const { canvas, w, h } = await imageToCanvas(file, OCR_MAX_DIM);
+    const log = ocrLog(onProgress);
+    const wk = await makeOcrWorker(log);
+    let text = '';
+    try { text = await ocrOnce(canvas, wk, log); } finally { await endOcrWorker(wk); }
+    return { text: linesToSentences(text), ocr: true, dims: w + 'x' + h };
+  }
+  return { text: await file.text() };
+}
+
+/* ---------- GitHub capture ---------- */
+function parseGhUrl(q) {
+  if (!q || !q.trim()) throw new Error('Paste a GitHub repo URL first - e.g. github.com/kubernetes/kubernetes');
+  let s = q.trim().split(/[?#]/)[0].replace(/\/+$/, '');
+  s = s.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+  if (/^github\.com\//i.test(s)) s = s.slice(11);
+  else if (/^github\.com$/i.test(s)) throw new Error('Almost - add the repo: github.com/owner/repo');
+  const seg = s.split('/').filter(Boolean);
+  if (seg.length < 2) throw new Error('That does not look like a GitHub repo - use github.com/owner/repo');
+  const owner = seg[0], repo = seg[1].replace(/\.git$/i, '');
+  if (!/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(repo)) throw new Error('That does not look like a valid GitHub owner/repo');
+  let kind = 'root', branch = null, path = '';
+  if (seg.length >= 4 && (seg[2] === 'tree' || seg[2] === 'blob')) {
+    kind = seg[2]; branch = seg[3];
+    try { path = seg.slice(4).map(decodeURIComponent).join('/'); } catch (e) { path = seg.slice(4).join('/'); }
+  } else if (seg.length > 2) {
+    try { path = seg.slice(2).map(decodeURIComponent).join('/'); } catch (e) { path = seg.slice(2).join('/'); }
+  }
+  if (kind === 'blob' && !path) kind = 'root';
+  const label = owner + '/' + repo + (kind === 'blob' && path ? ' \u00B7 ' + path.split('/').pop() : '');
+  return { owner, repo, kind, branch, path, label };
+}
+async function ghApi(url) {
+  const r = await fetch('/api/github?url=' + encodeURIComponent(url), { headers: { 'Accept': 'application/vnd.github+json' } });
+  if (r.status === 403 || r.status === 429) {
+    if (r.headers.get('x-ratelimit-remaining') === '0')
+      throw new Error('GitHub API rate limit reached (60 requests/hour without a token) - try again later');
+    throw new Error('GitHub refused the request (HTTP ' + r.status + ')');
+  }
+  if (r.status === 404) throw new Error('Repository or branch not found - private repos cannot be read without a token');
+  if (!r.ok) throw new Error('GitHub error HTTP ' + r.status);
+  return r.json();
+}
+async function ghRaw(owner, repo, branch, path) {
+  const url = 'https://raw.githubusercontent.com/' + owner + '/' + repo + '/' +
+    encodeURIComponent(branch || 'HEAD') + '/' + path.split('/').map(encodeURIComponent).join('/');
+  return fetch('/api/github?url=' + encodeURIComponent(url));
+}
+const GH_DOC_EXT = /\.(md|mdx|txt|rst)$/i;
+function ghDocScore(p) {
+  const parts = p.split('/'), base = parts[parts.length - 1].toLowerCase();
+  let s = 0;
+  if (parts.length === 1 && base.startsWith('readme')) s += 120;
+  else if (base.startsWith('readme')) s += 26;
+  if (/^(docs?|architecture|arch|adr|adrs|design|rfc)\//i.test(p)) s += 34;
+  if (/architect|design|overview|adr|rfc|decision|diagram/.test(base)) s += 45;
+  s -= (parts.length - 1) * 2;
+  return s;
+}
+function ghDocBad(p) {
+  if (/(^|\/)(node_modules|vendor|dist|build|out|target|coverage|\.github|\.vscode)\//i.test(p)) return true;
+  const base = p.split('/').pop();
+  return /(changelog|^licen[cs]e$|code_of_conduct|contributing|security\.md|pull_request_template|issue_template|\.lock$)/i.test(base);
+}
+
+async function captureFromGitHub(q) {
+  let target;
+  try { target = parseGhUrl(q); }
+  catch (e) { toast(e.message, 'error'); return; }
+  if (processing) { toast('A capture is already running - one moment.', 'error'); return; }
+  processing = true;
+  state.view = 'processing'; render();
+  const ctl = openProcView({ name: target.label });
+  try {
+    ctl.setStep(0, 'active');
+    if (target.kind === 'blob') {
+      const r = await ghRaw(target.owner, target.repo, target.branch, target.path);
+      if (!r.ok) throw new Error('Could not fetch that file (HTTP ' + r.status + ') - private repos cannot be read without a token');
+      const text = await r.text();
+      ctl.setStep(0, 'done', 'single file');
+      ctl.setStep(1, 'active');
+      await analyzeSteps(ctl,
+        { name: target.owner + '/' + target.repo + ' - ' + target.path.split('/').pop(), type: 'REPO', size: text.length, note: 'github \u00B7 ' + target.path },
+        { text }, fmtInt(text.length) + ' chars');
+    } else {
+      const meta = await ghApi('https://api.github.com/repos/' + target.owner + '/' + target.repo);
+      const branch = target.branch || meta.default_branch || 'main';
+      await ctl.finishStep(0, 300, target.owner + '/' + target.repo + ' \u00B7 ' + branch);
+      ctl.setStep(1, 'active');
+      const tree = await ghApi('https://api.github.com/repos/' + target.owner + '/' + target.repo + '/git/trees/' + encodeURIComponent(branch) + '?recursive=1');
+      const all = (tree.tree || []).filter(e => e.type === 'blob' && GH_DOC_EXT.test(e.path) && !ghDocBad(e.path) && e.size <= 150000);
+      let picked = target.path
+        ? all.filter(e => e.path === target.path || e.path.startsWith(target.path + '/'))
+        : all.filter(e => e.path.split('/').length <= 6);
+      picked.sort((a, b) => ghDocScore(b.path) - ghDocScore(a.path));
+      picked = picked.slice(0, 15);
+      if (!picked.length) throw new Error(target.path
+        ? 'No markdown/text docs under that folder in that repo'
+        : 'No markdown or text docs found in that repo');
+      let out = '', total = 0, got = 0;
+      for (let i = 0; i < picked.length; i++) {
+        const f = picked[i];
+        ctl.progress((i + 1) + ' / ' + picked.length + ' \u00B7 ' + f.path.split('/').pop());
+        try {
+          const r = await ghRaw(target.owner, target.repo, branch, f.path);
+          if (!r.ok) continue;
+          let t = await r.text();
+          if (total + t.length > 600000) t = t.slice(0, Math.max(0, 600000 - total));
+          if (!t.trim()) continue;
+          out += '\n\n# FILE: ' + f.path + '\n\n' + t;
+          total += t.length; got++;
+        } catch (e) {}
+        if (total >= 600000) break;
+      }
+      if (!got) throw new Error('Docs were listed but every fetch failed - network issue or rate limit');
+      await analyzeSteps(ctl,
+        { name: target.owner + '/' + target.repo, type: 'REPO', size: total, note: 'github \u00B7 ' + got + ' files \u00B7 ' + branch },
+        { text: out }, got + ' files \u00B7 ' + fmtInt(total) + ' chars');
+    }
+  } catch (err) {
+    ctl.fail('GitHub fetch failed');
+    toast(err.message || 'Could not fetch that repository', 'error');
+    await wait(600);
+  } finally { processing = false; }
+}
+
+async function analyzeSteps(ctl, meta, ex, step1Note) {
+  const text = humanize((ex.text || '').replace(/\u0000/g, ''));
+  const minChars = 1;
+  if (text.replace(/\s+/g, '').length < minChars) {
+    ctl.fail('No readable text');
+    toast(meta.type === 'REPO'
+      ? 'No readable text came back from that repo - it may have no markdown docs, or the fetches were rate-limited.'
+      : ((ex.ocr || ex.scanned)
+        ? '"' + meta.name + '" gave no readable text even after OCR - try a sharper image or a text-based copy.'
+        : '"' + meta.name + '" has no extractable text. Scanned PDFs and images are auto-OCR-read, but this one came back empty - is it blank or encrypted?'), 'error');
+    await wait(800); return;
+  }
+  await ctl.finishStep(1, 380, step1Note);
+  ctl.setStep(2, 'active');
+  const a = analyze(text);
+  await ctl.showSignals(a.topTerms);
+  ctl.setStep(2, 'done', a.stats.hits + ' signal hits \u00B7 ' + a.topTerms.length + ' key terms');
+  ctl.setStep(3, 'active');
+  await ctl.showPatterns(a.patterns.slice(0, 10));
+  const d = {
+    id: uid(), name: meta.name, type: meta.type,
+    size: meta.size, addedAt: Date.now(), text: text, note: meta.note || '',
+    analysis: Object.assign({}, a, {
+      patterns: a.patterns.map(p => Object.assign(p, { lastSeen: 0 }))
+    })
+  };
+  store.docs.push(d); saveStore();
+  ctl.setStep(3, 'done', a.patterns.length + ' diagrams + graph model ready');
+  await wait(620);
+  state.view = 'doc'; state.docId = d.id; state.focusPid = null; render();
+  toast('FocusedLearning captured "' + meta.name + '" - ' + a.patterns.length + ' patterns connected & filed.');
+}
+
+async function processOne(file) {
+  state.view = 'processing'; render();
+  const ctl = openProcView(file);
+  ctl.setStep(0, 'active');
+  let ex;
+  try { ex = await extract(file, s => ctl.progress(s)); }
+  catch (err) { ctl.fail('Extraction failed'); showReadFailure(file, err); return; }
+  await ctl.finishStep(0, 420, fmtBytes(file.size) + ' \u00B7 ' + (TYPE_LABEL[file.name.split('.').pop().toLowerCase()] || 'FILE'));
+  ctl.setStep(1, 'active');
+  await wait(120);
+  const note = [ex.note, ex.dims ? 'OCR \u00B7 ' + ex.dims : '', (ex.ocr && !ex.note && !ex.dims) ? 'OCR' : ''].filter(Boolean).join(' \u00B7 ');
+  await analyzeSteps(ctl,
+    { name: file.name, type: TYPE_LABEL[file.name.split('.').pop().toLowerCase()] || 'FILE', size: file.size, note },
+    ex,
+    (ex.pages ? ex.pages + ' pages \u00B7 ' : '') +
+    (ex.slides ? ex.slides + ' slides \u00B7 ' : '') +
+    (ex.ocr ? 'OCR \u00B7 ' : '') + fmtInt((ex.text || '').length) + ' chars');
+}
+
+function openProcView(file) {
+  const m = $('#main');
+  const labels = ['Read source', 'Extract \u00B7 fetch \u00B7 OCR', 'Match signals', 'Sketch & connect'];
+  m.innerHTML = '<div class="proc"><div class="kicker">FocusedLearning</div>' +
+    '<h1 class="title" style="font-size:29px">' + esc(file.name) + '</h1>' +
+    '<div class="steps">' + labels.map(l =>
+      '<div class="step"><span class="step-state">' + RING + '</span><span class="step-label">' + l + '</span><span class="step-result"></span></div>').join('') +
+    '</div><div class="sig-cloud" id="pSig"></div><div class="mp-wrap" id="pPats"></div><div class="proc-note" id="pNote"></div></div>';
+  m.scrollTop = 0;
+  const steps = [...m.querySelectorAll('.step')];
+  const t0 = [0, 0, 0, 0];
+  const alive = () => m.isConnected;
+  return {
+    setStep(i, s, result) {
+      if (!alive()) return;
+      const el = steps[i]; el.className = 'step ' + s;
+      el.querySelector('.step-state').innerHTML = s === 'done' ? CHECK : s === 'active' ? SPIN : RING;
+      if (result !== undefined) el.querySelector('.step-result').textContent = result;
+      if (s === 'active') t0[i] = performance.now();
+    },
+    async finishStep(i, minMs, result) {
+      const left = minMs - (performance.now() - t0[i]);
+      if (left > 0) await wait(left);
+      this.setStep(i, 'done', result);
+    },
+    progress(txt) { if (alive()) steps[1].querySelector('.step-result').textContent = txt; },
+    async showSignals(terms) {
+      if (!alive()) return;
+      const box = $('#pSig');
+      for (const t of terms.slice(0, 12)) {
+        if (!alive()) return;
+        const c = document.createElement('span');
+        c.className = 'sig-chip';
+        c.innerHTML = esc(humanize(t.t)) + ' <b>x' + t.n + '</b>';
+        box.appendChild(c);
+        await wait(70);
+      }
+      await wait(220);
+    },
+    async showPatterns(pats) {
+      if (!alive()) return;
+      const box = $('#pPats');
+      for (const p of pats) {
+        if (!alive()) return;
+        const row = document.createElement('div');
+        row.className = 'mp';
+        row.innerHTML = '<span class="mp-dg">' + dsvg(p.id) + '</span>' +
+          '<span class="mp-name">' + esc(LIBMAP[p.id].name) + '</span>' +
+          '<div class="mp-track"><div class="mp-fill"></div></div><span class="mp-val">' + Math.round(p.conf * 100) + '%</span>';
+        box.appendChild(row);
+        requestAnimationFrame(() => { row.querySelector('.mp-fill').style.width = Math.round(p.conf * 100) + '%'; });
+        await wait(170);
+      }
+      await wait(280);
+    },
+    fail(note) {
+      if (!alive()) return;
+      const active = steps.findIndex(s => s.classList.contains('active'));
+      if (active >= 0) { steps[active].className = 'step done'; steps[active].querySelector('.step-state').innerHTML = ic('x', 14); steps[active].style.color = 'var(--acc)'; }
+      $('#pNote').textContent = 'x ' + note + ' - nothing was added to the knowledgebase.';
+    }
+  };
+}
+
+/* ============================== VIEWS ============================== */
+function viewHome() {
+  const n = store.docs.length;
+  const pats = store.docs.reduce((s, d) => s + d.analysis.patterns.length, 0);
+  const due = dueAll();
+  const recent = store.docs.slice().sort((a, b) => b.addedAt - a.addedAt).slice(0, 3);
+  return '<div class="home">' +
+    (n ? '<div class="home-stats">' + n + ' documents \u00B7 <b>' + pats + '</b> patterns captured \u00B7 ' + due + ' due for review</div>' : '') +
+    BLUEPRINT +
+    '<h1 class="home-h">Drop a document.<br>I\u2019ll turn it into <em>focused learning.</em></h1>' +
+    '<p class="home-sub">FocusedLearning reads your PDFs, PowerPoint decks and images - or pulls the docs from a public GitHub repo. Every detected pattern gets a diagram, a plain-words analogy, a relationship graph, and connections out to the live web. Then quizzes make it stick.</p>' +
+    '<div class="drop" id="dropZone"><div class="drop-big">Click or drop files <span>-</span> capture patterns</div>' +
+      '<div class="drop-fmt">' + ['PDF', 'DOCX', 'PPTX', 'IMAGES', 'MD', 'TXT', 'HTML', 'RTF'].map((f, i) => '<span class="fmt' + (i < 4 ? ' hot' : '') + '">' + f + '</span>').join('') + '</div></div>' +
+    '<div class="gh-bar"><span class="gh-ic">' + ic('git', 15) + '</span>' +
+      '<input id="ghInput" placeholder="github.com/owner/repo - pull README + docs" spellcheck="false" autocomplete="off">' +
+      '<button class="gh-btn" id="ghBtn">Fetch &amp; analyze</button></div>' +
+    '<div class="gh-hint">Public repos - the README, docs/ and architecture-named markdown are fetched via the GitHub API, right from your browser. Past a specific file or /tree/ URL and only that is read.</div>' +
+    '<div class="home-privacy">Files never leave your browser. Only outbound calls: GitHub\u2019s API for repos and Wikipedia\u2019s API when you pull a summary - everything else opens in a new tab.</div>' +
+    (recent.length ? '<div class="home-recent"><span>RECENT:</span>' + recent.map(d => '<button data-open="' + d.id + '">' + esc(d.name.length > 26 ? d.name.slice(0, 26) + '...' : d.name) + ' \u00B7 ' + d.analysis.patterns.length + '</button>').join('') + '</div>' : '') +
+  '</div>';
+}
+function bindHome() {
+  $('#dropZone').onclick = () => $('#fileInput').click();
+  const ghGo = () => captureFromGitHub($('#ghInput').value);
+  $('#ghBtn').onclick = ghGo;
+  $('#ghInput').addEventListener('keydown', e => { if (e.key === 'Enter') ghGo(); });
+  document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { state.view = 'doc'; state.docId = b.dataset.open; render(); });
+}
+
+const BLUEPRINT = '<svg class="bp" viewBox="0 0 560 250" fill="none" aria-hidden="true">' +
+  '<g class="fadein" style="animation-delay:.1s"><circle cx="16" cy="16" r="6" stroke="#8B8471" stroke-width="1"/><path d="M16 7v18M7 16h18" stroke="#8B8471" stroke-width="1"/></g>' +
+  '<g class="fadein" style="animation-delay:.1s"><circle cx="544" cy="234" r="6" stroke="#8B8471" stroke-width="1"/><path d="M544 225v18M535 234h18" stroke="#8B8471" stroke-width="1"/></g>' +
+  '<rect class="dash fadein" x="150" y="55" width="258" height="170" style="animation-delay:.2s"/>' +
+  '<text class="fadein" x="150" y="47" style="animation-delay:.5s">SYSTEM BOUNDARY</text>' +
+  '<rect class="st draw" pathLength="1" x="18" y="75" width="88" height="36" style="animation-delay:.15s"/>' +
+  '<rect class="st draw" pathLength="1" x="172" y="75" width="100" height="36" style="animation-delay:.3s"/>' +
+  '<rect class="st draw" pathLength="1" x="172" y="150" width="100" height="36" style="animation-delay:.45s"/>' +
+  '<rect class="st draw" pathLength="1" x="320" y="75" width="66" height="30" style="animation-delay:.55s"/>' +
+  '<path class="st draw" pathLength="1" d="M330 85h46M330 95h46" style="animation-delay:.7s"/>' +
+  '<rect class="st st-acc draw" pathLength="1" x="300" y="158" width="110" height="22" style="animation-delay:.6s"/>' +
+  '<ellipse class="st draw" pathLength="1" cx="500" cy="130" rx="32" ry="10" style="animation-delay:.75s"/>' +
+  '<path class="st draw" pathLength="1" d="M468 130v48M532 130v48M468 178c0 5.5 14.3 10 32 10s32-4.5 32-10" style="animation-delay:.85s"/>' +
+  '<path class="st draw" pathLength="1" d="M106 93h66M166 89l6 4-6 4" style="animation-delay:.95s"/>' +
+  '<path class="st draw" pathLength="1" d="M222 111v39M218 144l4 6 4-6" style="animation-delay:1.05s"/>' +
+  '<path class="st draw" pathLength="1" d="M272 93h48M314 89l6 4-6 4" style="animation-delay:1.15s"/>' +
+  '<path class="st draw" pathLength="1" d="M272 169h28M294 165l6 4-6 4" style="animation-delay:1.25s"/>' +
+  '<path class="st st-acc draw" pathLength="1" d="M353 105v53M349 152l4 6 4-6" style="animation-delay:1.35s"/>' +
+  '<path class="st st-acc draw" pathLength="1" d="M410 169h58M462 165l6 4-6 4" style="animation-delay:1.45s"/>' +
+  '<text class="fadein" x="62" y="97" text-anchor="middle" style="animation-delay:1.1s">CLIENT</text>' +
+  '<text class="fadein" x="222" y="97" text-anchor="middle" style="animation-delay:1.2s">GATEWAY</text>' +
+  '<text class="fadein" x="222" y="172" text-anchor="middle" style="animation-delay:1.3s">SERVICE</text>' +
+  '<text class="fadein" x="353" y="94" text-anchor="middle" style="animation-delay:1.4s">QUEUE</text>' +
+  '<text class="fadein acc" x="355" y="196" text-anchor="middle" style="animation-delay:1.5s">EVENT BUS</text>' +
+  '<text class="fadein" x="500" y="205" text-anchor="middle" style="animation-delay:1.6s">DATA STORE</text>' +
+'</svg>';
+
+function dial(conf) {
+  const r = 10.5, C = 2 * Math.PI * r;
+  const track = (0.75 * C).toFixed(1) + ' ' + (0.25 * C).toFixed(1);
+  const fill = (conf * 0.75 * C).toFixed(1) + ' ' + C.toFixed(1);
+  return '<svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">' +
+    '<circle cx="15" cy="15" r="' + r + '" fill="none" stroke="var(--line)" stroke-width="2.5" stroke-dasharray="' + track + '" transform="rotate(135 15 15)"/>' +
+    '<circle cx="15" cy="15" r="' + r + '" fill="none" stroke="var(--acc)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="' + fill + '" transform="rotate(135 15 15)"/>' +
+    '<text x="15" y="18.5" text-anchor="middle" style="font-family:var(--f-mono);font-size:7.5px;fill:var(--ink-2)">' + Math.round(conf * 100) + '</text></svg>';
+}
+
+function webRadarSection(a) {
+  const phrase = a.concepts.phrases[0] ? a.concepts.phrases[0][0] : null;
+  const term = a.concepts.terms[0] ? a.concepts.terms[0][0] : null;
+  const topPid = a.patterns[0] && a.patterns[0].id;
+  const subject = phrase || term || (topPid ? LIBMAP[topPid].name : 'software architecture');
+  const q = encodeURIComponent(subject);
+  const srch = SOURCES.map(s =>
+    '<a class="rlink" target="_blank" rel="noopener" href="' + s[1].replace('{q}', q) + '">' + esc(s[0]) + ' \u00B7 ' + esc(subject.length > 18 ? subject.slice(0, 18) + '...' : subject) + '</a>').join('');
+  const techLinks = a.techs.slice(0, 8).map(t =>
+    '<a class="rlink" target="_blank" rel="noopener" href="https://developer.mozilla.org/en-US/search?q=' + encodeURIComponent(t.name) + '">MDN \u00B7 ' + esc(t.name) + ' \u2197</a>').join('');
+  const sites = SITES.map(s =>
+    '<a class="rlink" target="_blank" rel="noopener" href="' + esc(s[1]) + '">' + esc(s[0]) + ' <span class="rlx">\u2197</span></a>').join('');
+  return '<div class="sec-head"><span class="sec-title">Knowledge radar</span><span class="sec-count">sources beyond this file</span><span class="rule"></span></div>' +
+    '<div class="sec-note">Chips open in a new tab. "Pull live summary" inside each pattern fetches Wikipedia\u2019s intro right into the card. Attach any article URL below to keep it with this capture.</div>' +
+    '<div class="radar-lab" style="margin-top:14px">SEARCH THE WEB FOR THIS DOC\u2019S SUBJECT</div>' +
+    '<div class="radar-row">' + srch + '</div>' +
+    (techLinks ? '<div class="radar-lab" style="margin-top:14px">DOCS FOR DETECTED TECHNOLOGIES</div><div class="radar-row">' + techLinks + '</div>' : '') +
+    '<div class="radar-lab" style="margin-top:14px">CURATED KNOWLEDGE SITES</div>' +
+    '<div class="radar-row">' + sites + '</div>' +
+    '<div class="radar-row" style="margin-top:14px"><span class="radar-lab2">ATTACH SOURCE</span>' +
+      (a.patterns.length ? '<select class="rselect" id="xrPid">' + a.patterns.map(p => '<option value="' + p.id + '">' + esc(LIBMAP[p.id].name) + '</option>').join('') + '</select>' : '') +
+      '<input class="rinput" id="xrUrlD" placeholder="https:// article URL (ConceptRadar, blog, paper...)" spellcheck="false">' +
+      '<button class="wbtn" id="xrAddD">Attach</button></div>' +
+    graphModelHTML(a.patterns);
+}
+
+function viewDoc(id) {
+  const d = getDoc(id);
+  if (!d) return viewHome();
+  const a = d.analysis, top = a.patterns.slice(0, 8);
+  const max = top.length ? top[0].score : 1;
+  const skyline = top.length >= 2 ?
+    '<div class="skyline">' + top.map(p =>
+      '<div class="sky-col"><span class="sky-val">' + Math.round(p.conf * 100) + '%</span>' +
+      '<div class="sky-bar" style="height:' + Math.round(14 + p.score / max * 66) + 'px;background:' + (p === top[0] ? 'var(--acc)' : 'rgba(25,21,16,' + Math.max(0.28, 0.85 - top.indexOf(p) * 0.09) + ')') + '"></div>' +
+      '<span class="sky-lab">' + esc(LIBMAP[p.id].name) + '</span></div>').join('') + '</div>' : '';
+
+  const rows = a.patterns.length ? a.patterns.map((p, i) => {
+    const lib = LIBMAP[p.id];
+    return '<article class="prow" data-pid="' + p.id + '">' +
+      '<button class="prow-head" aria-expanded="false">' +
+        '<span class="rank">' + String(i + 1).padStart(2, '0') + '</span>' +
+        '<span class="prow-name">' + esc(lib.name) + '<span class="cat-tag">' + esc(lib.cat) + '</span></span>' +
+        '<span class="prow-chips">' + p.terms.slice(0, 3).map(t => '<span class="sig-chip">' + esc(humanize(t.t)) + ' <b>x' + t.n + '</b></span>').join('') + '</span>' +
+        dial(p.conf) +
+        '<span class="chev">' + ic('chev', 16) + '</span>' +
+      '</button>' +
+      '<div class="prow-body"><div class="prow-inner">' +
+        '<div class="p-top"><div class="p-copy">' +
+          '<p class="p-desc">' + esc(lib.desc) + '</p>' +
+          anaBlock(p.id) +
+          '<div class="chips">' + p.terms.map(t => '<span class="sig-chip">' + esc(humanize(t.t)) + ' <b>x' + t.n + '</b></span>').join('') + '</div>' +
+        '</div>' +
+        '<div class="p-diagram">' + dsvg(p.id) + '<div class="dg-cap">DIAGRAM \u00B7 ' + esc(lib.cat) + '</div></div></div>' +
+        '<div class="ev-list">' + p.evidence.map(ev => '<div class="ev">' + markFactory(ev.terms)(humanize(ev.q)) + '</div>').join('') + '</div>' +
+        radarBlock(p.id) +
+      '</div></div></article>';
+  }).join('') : '<p class="p-desc" style="padding:22px 4px">No architecture signals were found in this document. It may be too short, or about something other than system design.</p>';
+
+  const mkConc = (arr, accFirst) => arr.length ?
+    '<div class="conc">' + arr.map((x, i) =>
+      '<div class="conc-row' + (accFirst && i === 0 ? ' acc' : '') + '"><span class="conc-term">' + esc(x[0]) + '</span>' +
+      '<div class="conc-track"><div class="conc-fill" style="width:' + Math.round(x[1] / arr[0][1] * 100) + '%"></div></div>' +
+      '<span class="conc-n">' + x[1] + '</span></div>').join('') + '</div>'
+    : '<p class="p-desc" style="margin-top:16px;font-size:13px">-</p>';
+
+  const paras = () => {
+    let body = d.text || '';
+    if (body.length > 60000) body = body.slice(0, 60000);
+    return body.split(/\n\s*\n/).map(p => humanize(p.replace(/\s*\n\s*/g, ' ').trim())).filter(Boolean);
+  };
+  const ps = paras();
+
+  const meta = [d.type, d.note, a.stats.words.toLocaleString() + ' words',
+    '~' + Math.max(1, Math.round(a.stats.words / 220)) + ' min read',
+    a.stats.chars.toLocaleString() + ' chars', 'added ' + fmtDate(d.addedAt)].filter(Boolean).join('</i> <i>\u00B7</i> <i>');
+
+  return '<div class="view">' +
+    '<div class="kicker">Knowledge card \u00B7 reference ' + esc(String(store.docs.indexOf(d) + 1).padStart(3, '0')) + '</div>' +
+    '<h1 class="title">' + esc(d.name) + '</h1>' +
+    '<div class="meta-line"><i>' + meta + '</i></div>' +
+    '<div class="doc-actions">' +
+      '<button class="btn primary" id="actPractice">' + ic('refresh', 14) + 'Practice recall</button>' +
+      '<button class="btn" id="actExport">' + ic('down', 14) + 'Export card</button>' +
+      '<button class="btn" id="actDelete">' + ic('trash', 14) + '<span>Delete</span></button>' +
+    '</div>' +
+    skyline +
+    '<div class="sec-head"><span class="sec-title">Patterns detected</span><span class="sec-count">' + a.patterns.length + ' \u00B7 diagrams in sidebar</span><span class="rule"></span></div>' +
+    '<div class="plist" id="plist">' + rows + '</div>' +
+    '<div class="duo">' +
+      '<div><div class="sec-head"><span class="sec-title">Technology stack</span><span class="sec-count">' + a.techs.length + '</span><span class="rule"></span></div>' +
+        '<div class="chips">' + (a.techs.map(t => '<span class="chip">' + esc(t.name) + (t.n > 1 ? '<b>x' + t.n + '</b>' : '') + '</span>').join('') || '<span class="p-desc" style="font-size:13px">No known technologies mentioned.</span>') + '</div></div>' +
+      '<div><div class="sec-head"><span class="sec-title">Key concepts</span><span class="rule"></span></div>' +
+        (a.concepts.phrases.length ? '<div class="sec-note">RECURRING PHRASES</div>' + mkConc(a.concepts.phrases, true) : '') +
+        '<div class="sec-note" style="margin-top:18px">TERMS BY FREQUENCY</div>' + mkConc(a.concepts.terms, !a.concepts.phrases.length) + '</div>' +
+    '</div>' +
+    webRadarSection(a) +
+    '<div class="sec-head"><span class="sec-title">Annotated text</span><span class="sec-count">' + a.stats.hits + ' signals marked</span><span class="rule"></span></div>' +
+    '<div class="sec-note">Every matched architecture signal is marked in red - read the doc through the pattern lens.</div>' +
+    '<div class="reader-wrap"><div class="reader-bar"><span>HIGHLIGHTS <span id="hlCur">-</span> / <span id="hlAll">0</span></span><span class="sp"></span>' +
+      '<button class="pg-btn" id="hlPrev" aria-label="Previous highlight">' + ic('chev', 14) + '</button>' +
+      '<button class="pg-btn" id="hlNext" aria-label="Next highlight" style="transform:rotate(-90deg)">' + ic('chev', 14) + '</button></div>' +
+      '<div class="reader-body" id="readerBody">' +
+        (d.text ? ps.map(p => '<p>' + markFactory(a.hilite)(p) + '</p>').join('') : '<p><em>Full text was not retained (storage limit) - the analysis above is fully preserved.</em></p>') +
+      '</div></div>' +
+  '</div>';
+}
+function bindDoc() {
+  const d = getDoc(state.docId); if (!d) return;
+  document.querySelectorAll('#plist .prow-head').forEach(h => h.onclick = () => {
+    const row = h.closest('.prow'), body = row.querySelector('.prow-body');
+    const open = row.classList.toggle('open');
+    h.setAttribute('aria-expanded', open);
+    body.style.maxHeight = open ? body.scrollHeight + 'px' : '0px';
+  });
+  bindKnowledgeBits();
+  document.querySelectorAll('.gnode').forEach(n => {
+    n.addEventListener('mouseenter', () => graphHover(n.dataset.pid));
+    n.addEventListener('mouseleave', () => graphHover(null));
+  });
+  const xa = $('#xrAddD');
+  if (xa) xa.onclick = () => {
+    const sel = $('#xrPid');
+    if (!sel || !sel.value) { toast('No patterns detected in this document to attach a source to.', 'error'); return; }
+    const pid = sel.value, url = $('#xrUrlD').value.trim();
+    let u;
+    try { u = new URL(url); } catch (e) { toast('That is not a valid URL - include https://', 'error'); return; }
+    if (!/^https?:$/.test(u.protocol)) { toast('Only http(s) URLs are supported.', 'error'); return; }
+    (XREFS[pid] = XREFS[pid] || []).push({ label: u.hostname.replace(/^www\./, ''), url: u.href });
+    saveJSON(XRKEY, XREFS);
+    render();
+    toast('Source attached to "' + LIBMAP[pid].name + '" - it now appears on every card for that pattern.');
+  };
+  $('#actPractice').onclick = () => {
+    state.recall = { scope: d.id, session: null, autostart: true };
+    state.view = 'recall'; render();
+  };
+  $('#actExport').onclick = () => {
+    download(d.name.replace(/\.[^.]+$/, '') + '.knowledge-card.md', docToMD(d), 'text/markdown');
+  };
+  const del = $('#actDelete'); let armed = false, timer;
+  del.onclick = () => {
+    if (!armed) {
+      armed = true; del.classList.add('danger');
+      del.querySelector('span').textContent = 'Confirm delete?';
+      timer = setTimeout(() => { armed = false; del.classList.remove('danger'); del.querySelector('span').textContent = 'Delete'; }, 2800);
+    } else {
+      clearTimeout(timer);
+      store.docs = store.docs.filter(x => x.id !== d.id); saveStore();
+      const rest = store.docs.slice().sort((a, b) => b.addedAt - a.addedAt);
+      state.view = rest.length ? 'doc' : 'home'; state.docId = rest.length ? rest[0].id : null;
+      render(); toast('Removed "' + d.name + '" from the knowledgebase.');
+    }
+  };
+  const marks = [...document.querySelectorAll('#readerBody mark')];
+  $('#hlAll').textContent = marks.length;
+  let hi = -1;
+  const go = dir => {
+    if (!marks.length) return;
+    hi = (hi + dir + marks.length) % marks.length;
+    marks[hi].scrollIntoView({ block: 'center', behavior: 'smooth' });
+    marks[hi].classList.remove('flash'); void marks[hi].offsetWidth; marks[hi].classList.add('flash');
+    $('#hlCur').textContent = hi + 1;
+  };
+  $('#hlNext').onclick = () => go(1);
+  $('#hlPrev').onclick = () => go(-1);
+
+  if (state.focusPid) {
+    const row = document.querySelector('#plist .prow[data-pid="' + state.focusPid + '"]');
+    state.focusPid = null;
+    if (row) {
+      const head = row.querySelector('.prow-head'), body = row.querySelector('.prow-body');
+      if (!row.classList.contains('open')) {
+        row.classList.add('open'); head.setAttribute('aria-expanded', 'true');
+        body.style.maxHeight = body.scrollHeight + 'px';
+      }
+      setTimeout(() => {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const dg = row.querySelector('.p-diagram');
+        if (dg) { dg.classList.add('dg-flash'); setTimeout(() => dg.classList.remove('dg-flash'), 1600); }
+      }, 80);
+    }
+  }
+}
+
+function viewAtlas() {
+  const agg = radarAgg('all');
+  const cats = [...new Set([...agg.keys()].map(id => LIBMAP[id].cat))];
+  const shown = [...agg.entries()]
+    .filter(x => state.atlasCat === 'all' || LIBMAP[x[0]].cat === state.atlasCat)
+    .sort((a, b) => b[1].score - a[1].score);
+  const maxS = shown.length ? shown[0][1].score : 1;
+  const dormant = LIB.filter(p => !agg.has(p.id));
+
+  return '<div class="view">' +
+    '<div class="kicker">Reference knowledgebase</div>' +
+    '<h1 class="title">Pattern Atlas</h1>' +
+    '<div class="meta-line"><i>' + agg.size + ' of ' + LIB.length + ' patterns observed across ' + store.docs.length + ' documents</i></div>' +
+    '<div class="catfilter"><button class="cf-chip' + (state.atlasCat === 'all' ? ' on' : '') + '" data-cat="all">All</button>' +
+      cats.map(c => '<button class="cf-chip' + (state.atlasCat === c ? ' on' : '') + '" data-cat="' + esc(c) + '">' + esc(c) + '</button>').join('') + '</div>' +
+    '<div class="plist">' + (shown.map(([id, e]) => {
+      const lib = LIBMAP[id];
+      return '<article class="prow" data-pat="' + id + '">' +
+        '<button class="prow-head arow-head" aria-expanded="false">' +
+          '<span class="arow-dg">' + dsvg(id) + '</span>' +
+          '<span class="prow-name">' + esc(lib.name) + '<span class="cat-tag">' + esc(lib.cat) + '</span></span>' +
+          '<span class="arow-right"><span class="arow-n">in ' + e.docs.length + ' doc' + (e.docs.length > 1 ? 's' : '') + ' \u00B7 ' + Math.round(e.best.conf * 100) + '% peak</span>' +
+          '<span class="arow-meter"><div style="width:' + Math.round(e.score / maxS * 100) + '%"></div></span>' +
+          '<span class="chev">' + ic('chev', 16) + '</span></span>' +
+        '</button>' +
+        '<div class="prow-body"><div class="prow-inner">' +
+          '<div class="p-top"><div class="p-copy"><p class="p-desc">' + esc(lib.desc) + '</p>' + anaBlock(id) + '</div>' +
+          '<div class="p-diagram atlas-dg">' + dsvg(id) + '<div class="dg-cap">DIAGRAM \u00B7 ' + esc(lib.cat) + '</div></div></div>' +
+          (e.best.ev ? '<div class="ev-list"><div class="ev">' + markFactory(e.best.ev.terms)(humanize(e.best.ev.q)) + '</div></div>' +
+          '<div class="sec-note" style="margin-top:8px">STRONGEST EVIDENCE - ' + esc(e.best.doc.toUpperCase()) + '</div>' : '') +
+          '<div class="chips">' + e.docs.map(x => '<button class="doc-chip" data-open="' + x.id + '">' + esc(x.name) + ' \u00B7 ' + Math.round(x.conf * 100) + '%</button>').join('') + '</div>' +
+          radarBlock(id) +
+        '</div></div></article>';
+    }).join('') || '<p class="p-desc" style="padding:20px 4px">Nothing in this category yet - capture more documents.</p>') + '</div>' +
+    (dormant.length ? '<div class="dormant"><div class="sec-head" style="margin-top:0"><span class="sec-title">Dormant - not yet observed</span><span class="sec-count">' + dormant.length + '</span><span class="rule"></span></div>' +
+      '<p>' + dormant.map(p => esc(p.name)).join(' \u00B7 ') + '</p></div>' : '') +
+  '</div>';
+}
+function bindAtlas() {
+  document.querySelectorAll('.cf-chip').forEach(c => c.onclick = () => { state.atlasCat = c.dataset.cat; render(); });
+  bindKnowledgeBits();
+  document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { state.view = 'doc'; state.docId = b.dataset.open; render(); });
+  document.querySelectorAll('.arow-head').forEach(h => h.onclick = () => {
+    const row = h.closest('.prow'), body = row.querySelector('.prow-body');
+    const open = row.classList.toggle('open');
+    body.style.maxHeight = open ? body.scrollHeight + 'px' : '0px';
+  });
+}
+
+/* ---------- Recall (spaced repetition) ---------- */
+function buildPool(scope, dueOnly) {
+  const docs = scope === 'all' ? store.docs : store.docs.filter(d => d.id === scope);
+  let items = [];
+  for (const d of docs) for (const p of d.analysis.patterns) {
+    if (!p.evidence.length) continue;
+    if (dueOnly && !isDue(p)) continue;
+    items.push({ docId: d.id, docName: d.name, pid: p.id, ev: p.evidence[0], box: p.box });
+  }
+  if (dueOnly && !items.length) return buildPool(scope, false);
+  return items;
+}
+function startSession(items) {
+  const pool = shuffle(items).slice(0, 10).map(it => ({ ...it, opts: makeOpts(it.pid) }));
+  state.recall.session = { items: pool, i: 0, correct: 0, answered: false, picked: null };
+  render();
+}
+function makeOpts(pid) {
+  const p = LIBMAP[pid];
+  const others = LIB.filter(x => x.id !== pid);
+  let dis = shuffle(others.filter(x => x.cat === p.cat)).slice(0, 3);
+  if (dis.length < 3) dis = dis.concat(shuffle(others.filter(x => x.cat !== p.cat && !dis.includes(x))).slice(0, 3 - dis.length));
+  return shuffle([pid, ...dis.map(x => x.id)]);
+}
+function viewRecall() {
+  const r = state.recall;
+  if (r.autostart) { r.autostart = false; startSession(buildPool(r.scope, true)); return viewRecall(); }
+  const docs = store.docs.slice().sort((a, b) => b.addedAt - a.addedAt);
+  const scopeLabel = id => { const d = getDoc(id); return d ? d.name : '?'; };
+
+  if (r.session && !r.session.done) return qHTML(scopeLabel);
+  if (r.session && r.session.done) return resultHTML();
+
+  const dueItems = buildPool(r.scope, true);
+  const allItems = buildPool(r.scope, false);
+  let nextIn = Infinity;
+  for (const d of (r.scope === 'all' ? docs : docs.filter(x => x.id === r.scope)))
+    for (const p of d.analysis.patterns)
+      if (!isDue(p)) nextIn = Math.min(nextIn, INTERVALS[p.box] - (Date.now() - p.lastSeen) / 864e5);
+
+  return '<div class="view">' +
+    '<div class="kicker">Retention \u00B7 spaced repetition</div>' +
+    '<h1 class="title">Recall Practice</h1>' +
+    '<div class="meta-line"><i>Evidence quoted from your own documents \u00B7 Leitner boxes schedule each pattern</i></div>' +
+    '<div class="scope-row"><button class="cf-chip' + (r.scope === 'all' ? ' on' : '') + '" data-scope="all">All documents</button>' +
+      docs.map(d => '<button class="cf-chip' + (r.scope === d.id ? ' on' : '') + '" data-scope="' + d.id + '">' + esc(d.name.length > 22 ? d.name.slice(0, 22) + '...' : d.name) + '</button>').join('') + '</div>' +
+    (docs.length ? '<div class="panel">' +
+      (dueItems.length && dueItems.length !== allItems.length
+        ? '<div class="panel-big">' + dueItems.length + ' pattern' + (dueItems.length > 1 ? 's are' : ' is') + ' due for review</div>' +
+          '<div class="panel-sub">' + (nextIn < Infinity ? 'Next unscheduled review ' + fmtDue(Math.max(0, nextIn)) + ' \u00B7 ' : '') + 'correct answers move a pattern up a box; misses reset it to New.</div>' +
+          '<div class="panel-actions"><button class="btn primary" id="startDue">' + ic('refresh', 14) + 'Start session \u00B7 ' + Math.min(10, dueItems.length) + ' cards</button>' +
+          '<button class="btn" id="startAll">Drill all ' + Math.min(10, allItems.length) + '</button></div>'
+        : '<div class="panel-big">Nothing due right now</div>' +
+          '<div class="panel-sub">' + (nextIn < Infinity ? 'Next review ' + fmtDue(Math.max(0, nextIn)) + '. ' : '') + 'You can still drill everything to sharpen recall.</div>' +
+          '<div class="panel-actions"><button class="btn primary" id="startAll">' + ic('refresh', 14) + 'Practice all ' + Math.min(10, allItems.length) + '</button></div>') +
+      '</div>' +
+      '<div class="sec-head"><span class="sec-title">Mastery</span><span class="sec-count">' + allItems.length + ' patterns in scope</span><span class="rule"></span></div>' +
+      '<div>' + allItems.slice(0, 40).map(it => {
+        const p = getDoc(it.docId).analysis.patterns.find(x => x.id === it.pid);
+        return '<div class="mrow"><div><div class="mrow-name">' + esc(LIBMAP[it.pid].name) + '</div><div class="mrow-doc">' + esc(it.docName).slice(0, 40) + '</div></div>' +
+          '<div class="mrow-right"><span class="boxes">' + [0, 1, 2, 3, 4].map(b => '<span class="bx' + (p.box >= b ? ' on' : '') + '"></span>').join('') + '</span>' +
+          '<span class="box-lab">' + BOXNAMES[p.box] + '</span></div></div>';
+      }).join('') + '</div>'
+    : '<div class="panel"><div class="panel-big">No captures yet</div><div class="panel-sub">Upload a document first - then I\u2019ll build review cards from its evidence.</div>' +
+      '<div class="panel-actions"><button class="btn primary" id="goHome">' + ic('plus', 14) + 'Capture a document</button></div></div>') +
+  '</div>';
+}
+function qHTML(scopeLabel) {
+  const s = state.recall.session;
+  const it = s.items[s.i], lib = LIBMAP[it.pid];
+  const mark = markFactory(it.ev.terms);
+  const opts = it.opts.map((pid, idx) => {
+    let cls = 'opt';
+    if (s.answered) { if (pid === it.pid) cls += ' correct'; else if (pid === s.picked) cls += ' wrong'; }
+    return '<button class="' + cls + '" data-opt="' + pid + '"' + (s.answered ? ' disabled' : '') + '>' +
+      '<span class="opt-key">' + 'ABCD'[idx] + '</span>' +
+      '<span class="opt-dg">' + dsvg(pid) + '</span>' +
+      '<span>' + esc(LIBMAP[pid].name) + '</span></button>';
+  }).join('');
+  const fb = s.answered ?
+    '<div class="q-feedback"><div class="q-fb-copy">' +
+      '<div class="q-fb-name' + (s.picked === it.pid ? ' ok' : '') + '">' + (s.picked === it.pid ? 'Correct - ' : 'It was ') + esc(lib.name) + '</div>' +
+      '<div class="q-fb-desc">' + esc(lib.desc) + '</div>' +
+      anaBlock(it.pid) +
+      '<div class="q-fb-box">Box ' + it.newBox + ' \u00B7 ' + BOXNAMES[it.newBox] + ' - ' + (it.wasRight ? 'next review ' + fmtDue(INTERVALS[it.newBox]) : 'reset - shown again soon') + '</div>' +
+    '</div><div class="q-fb-dg">' + dsvg(it.pid) + '</div></div>' : '';
+  return '<div class="view" style="max-width:760px">' +
+    '<div class="kicker">Recall session \u00B7 ' + esc(scopeLabel(it.docId).slice(0, 30)) + '</div>' +
+    '<div class="meta-line" style="margin-top:12px"><i>QUESTION ' + (s.i + 1) + ' / ' + s.items.length + '</i><i>\u00B7</i><i>' + s.correct + ' correct</i></div>' +
+    '<div class="qcard"><div class="kicker" style="color:var(--ink-3)">Which pattern does this evidence point to?</div>' +
+    '<div class="q-quote">' + mark(humanize(it.ev.q)) + '</div>' +
+    '<div class="catfilter" style="margin-top:18px"><span class="cat-tag" style="padding:6px 12px">HINT \u00B7 ' + esc(lib.cat) + '</span></div>' +
+    '<div class="q-opts">' + opts + '</div>' + fb +
+    '<div class="q-foot">' + (s.answered ? '<button class="btn primary" id="qNext">' + (s.i + 1 >= s.items.length ? 'Finish' : 'Next') + ' \u2192</button>' : '') + '</div>' +
+    '</div></div>';
+}
+function resultHTML() {
+  const s = state.recall.session, n = s.items.length;
+  const pct = Math.round(s.correct / n * 100);
+  const msg = pct === 100 ? 'Perfect recall.' : pct >= 70 ? 'Solid - the spacing is doing its job.' : pct >= 40 ? 'Getting there - come back tomorrow.' : 'Early days - repetition will fix it.';
+  const C = 2 * Math.PI * 40;
+  return '<div class="view" style="max-width:640px"><div class="panel qresult">' +
+    '<div class="kicker">Session complete</div>' +
+    '<svg width="100" height="100" viewBox="0 0 100 100" style="margin-top:18px">' +
+      '<circle cx="50" cy="50" r="40" fill="none" stroke="var(--line)" stroke-width="6"/>' +
+      '<circle cx="50" cy="50" r="40" fill="none" stroke="var(--acc)" stroke-width="6" stroke-linecap="round" stroke-dasharray="' + (pct / 100 * C).toFixed(1) + ' ' + C.toFixed(1) + '" transform="rotate(-90 50 50)"/>' +
+    '</svg><div class="big">' + s.correct + ' / ' + n + '</div><div class="sub">' + msg + '</div>' +
+    '<div class="panel-actions"><button class="btn primary" id="againBtn">' + ic('refresh', 14) + 'Practice again</button>' +
+    '<button class="btn" id="backBtn">Back to overview</button></div></div></div>';
+}
+function bindRecall() {
+  const r = state.recall;
+  document.querySelectorAll('[data-scope]').forEach(c => c.onclick = () => { r.scope = c.dataset.scope; r.session = null; render(); });
+  const sd = $('#startDue'), sa = $('#startAll'), gh = $('#goHome');
+  if (sd) sd.onclick = () => startSession(buildPool(r.scope, true));
+  if (sa) sa.onclick = () => startSession(buildPool(r.scope, false));
+  if (gh) gh.onclick = () => { state.view = 'home'; render(); };
+  document.querySelectorAll('.opt:not([disabled])').forEach(o => o.onclick = () => answerQ(o.dataset.opt));
+  const nx = $('#qNext');
+  if (nx) nx.onclick = () => {
+    r.session.i++; r.session.answered = false; r.session.picked = null;
+    if (r.session.i >= r.session.items.length) r.session.done = true;
+    render();
+  };
+  const ag = $('#againBtn'), bk = $('#backBtn');
+  if (ag) ag.onclick = () => { r.session = null; startSession(buildPool(r.scope, true)); };
+  if (bk) bk.onclick = () => { r.session = null; render(); };
+}
+function answerQ(pid) {
+  const s = state.recall.session;
+  if (!s || s.answered) return;
+  s.answered = true; s.picked = pid;
+  const it = s.items[s.i];
+  it.wasRight = pid === it.pid;
+  if (it.wasRight) s.correct++;
+  const d = getDoc(it.docId);
+  const p = d.analysis.patterns.find(x => x.id === it.pid);
+  it.newBox = it.wasRight ? Math.min(4, p.box + 1) : 0;
+  p.box = it.newBox; p.lastSeen = Date.now();
+  saveStore();
+  render();
+}
+
+/* ---------- Export / Import ---------- */
+function exportKB() {
+  download('focusedlearning-knowledge-base.json', JSON.stringify(store, null, 2), 'application/json');
+}
+function importKB(e) {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const data = JSON.parse(rd.result);
+      if (!data || !Array.isArray(data.docs)) throw new Error('bad');
+      let added = 0;
+      for (const d of data.docs) if (!getDoc(d.id)) { store.docs.push(d); added++; }
+      saveStore(); render();
+      toast('Imported ' + added + ' document' + (added === 1 ? '' : 's') + ' into the knowledgebase.');
+    } catch (err) { toast('That file is not a valid FocusedLearning knowledgebase export.', 'error'); }
+  };
+  rd.readAsText(f);
+}
+function docToMD(d) {
+  const a = d.analysis;
+  const hl = (q, terms) => terms && terms.length ? q.replace(new RegExp('(' + terms.map(escRe).join('|') + ')', 'gi'), '**$1**') : q;
+  const L = ['# ' + d.name, '',
+    '> Captured ' + new Date(d.addedAt).toLocaleString() + ' \u00B7 ' + d.type + (d.note ? ' \u00B7 ' + d.note : '') + ' \u00B7 ' + a.stats.words.toLocaleString() + ' words \u00B7 ' + a.stats.hits + ' signal hits', '',
+    '## Detected patterns', ''];
+  a.patterns.forEach((p, i) => {
+    const lib = LIBMAP[p.id];
+    L.push('### ' + (i + 1) + '. ' + lib.name + ' - ' + Math.round(p.conf * 100) + '% confidence  ');
+    L.push('*Category: ' + lib.cat + '*  ');
+    L.push('Signals: ' + p.terms.map(t => humanize(t.t) + ' x' + t.n).join(', '));
+    L.push('');
+    L.push(lib.desc);
+    L.push('');
+    L.push('> **In plain words:** ' + lib.ana);
+    p.evidence.forEach(ev => { L.push(''); L.push('> ' + hl(humanize(ev.q), ev.terms)); });
+    const refs = (REFS[p.id] || []).map(r => '[' + r[0] + '](' + r[1] + ')')
+      .concat((XREFS[p.id] || []).map(r => '[' + r.label + '](' + r.url + ')'));
+    if (refs.length) { L.push(''); L.push('References: ' + refs.join(' \u00B7 ')); }
+    L.push('');
+  });
+  const ids = a.patterns.map(p => p.id);
+  const ges = EDGES.filter(([x, y]) => ids.includes(x) && ids.includes(y));
+  if (ges.length) {
+    L.push('## Graph model', '');
+    L.push(ges.map(([x, y]) => LIBMAP[x].name + ' -- ' + LIBMAP[y].name).join('; '));
+    L.push('');
+  }
+  L.push('## Technology stack', '');
+  L.push(a.techs.map(t => t.name).join(', ') || '-');
+  L.push('', '## Key concepts', '');
+  if (a.concepts.phrases.length) L.push('Phrases: ' + a.concepts.phrases.map(x => x[0]).join(' \u00B7 '));
+  L.push('Terms: ' + a.concepts.terms.map(x => x[0]).join(' \u00B7 '));
+  L.push('', '## Knowledge radar', '');
+  L.push('Curated sites: ' + SITES.map(s => '[' + s[0] + '](' + s[1] + ')').join(' \u00B7 '));
+  const pid = a.patterns[0] && a.patterns[0].id;
+  const subject = (a.concepts.phrases[0] && a.concepts.phrases[0][0]) || (a.concepts.terms[0] && a.concepts.terms[0][0]) || (pid ? LIBMAP[pid].name : 'software architecture');
+  L.push('', 'Web searches for "' + subject + '": ' +
+    SOURCES.map(s => '[' + s[0] + '](' + s[1].replace('{q}', encodeURIComponent(subject)) + ')').join(' \u00B7 '));
+  L.push('', '---', '*Generated by FocusedLearning - local architecture knowledge base.*');
+  return L.join('\n');
+}
+
+/* ============================== GLOBAL EVENTS ============================== */
+ $('#fileInput').addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
+ $('#mMenu').innerHTML = ic('menu', 18);
+ $('#mAdd').innerHTML = ic('plus', 18);
+ $('#mMenu').onclick = () => $('#sidebar').classList.toggle('open');
+ $('#mAdd').onclick = () => $('#fileInput').click();
+function closeMobile() { if (window.innerWidth <= 920) $('#sidebar').classList.remove('open'); }
+
+let dragDepth = 0;
+const hasFiles = e => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+window.addEventListener('dragenter', e => { if (hasFiles(e)) { e.preventDefault(); dragDepth++; $('#dropover').classList.add('on'); } });
+window.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+window.addEventListener('dragleave', e => { if (hasFiles(e)) { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) $('#dropover').classList.remove('on'); } });
+window.addEventListener('drop', e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault(); dragDepth = 0; $('#dropover').classList.remove('on');
+  handleFiles(e.dataTransfer.files);
+});
+
+window.addEventListener('keydown', e => {
+  const s = state.recall.session;
+  if (state.view === 'recall' && s && !s.done) {
+    if (!s.answered && /^[1-4]$/.test(e.key)) {
+      const opt = document.querySelectorAll('.opt:not([disabled])')[+e.key - 1];
+      if (opt) opt.click();
+    } else if (s.answered && (e.key === 'Enter' || e.key === 'ArrowRight')) {
+      const b = $('#qNext'); if (b) b.click();
+    }
+  }
+  if (e.key === 'Escape') closeMobile();
+});
+
+render();
+}

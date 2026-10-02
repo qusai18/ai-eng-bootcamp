@@ -1,6 +1,6 @@
 # Ask chat: Docker API + static Next.js site.
 # Apply this Blueprint from the Render Dashboard (New > Blueprint).
-# Set OPENAI_API_KEY on ask-api and github-crew when Render prompts for it.
+# Set OPENAI_API_KEY on ask-api, github-crew, and focused-learning when Render prompts for it.
 services:
   - type: web
     name: ask-api
@@ -32,6 +32,17 @@ services:
     plan: free
     dockerfilePath: ./githubcrew/Dockerfile
     dockerContext: ./githubcrew
+    healthCheckPath: /health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+
+  - type: web
+    name: focused-learning
+    runtime: docker
+    plan: free
+    dockerfilePath: ./focused_learning/Dockerfile
+    dockerContext: ./focused_learning
     healthCheckPath: /health
     envVars:
       - key: OPENAI_API_KEY

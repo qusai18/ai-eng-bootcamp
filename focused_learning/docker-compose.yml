@@ -1,0 +1,9 @@
+services:
+  focused-learning:
+    build: .
+    ports:
+      - "8081:10000"
+    env_file:
+      - ../.env
+    environment:
+      PORT: "10000"
