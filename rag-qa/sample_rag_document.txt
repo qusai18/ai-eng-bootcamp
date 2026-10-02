@@ -1,0 +1,37 @@
+# Introduction to RAG Systems
+
+## What is RAG?
+
+Retrieval Augmented Generation (RAG) is a technique that enhances the capabilities of Large Language Models (LLMs) by providing them with access to external knowledge sources.
+
+## How RAG Works
+
+RAG systems work in two phases:
+
+### Phase 1: Indexing
+1. Documents are loaded from various sources (PDFs, databases, APIs)
+2. Documents are split into smaller chunks
+3. Each chunk is converted to a vector using an embedding model
+4. Vectors are stored in a vector database
+
+### Phase 2: Querying
+1. User asks a question
+2. Question is converted to a vector
+3. Vector database finds similar document chunks
+4. Retrieved chunks are added to the LLM prompt
+5. LLM generates an answer based on the retrieved context
+
+## Benefits of RAG
+
+- Reduces hallucination by grounding answers in real data
+- Allows access to up-to-date information
+- Enables use of private/internal documents
+- Provides source attribution for answers
+
+## Best Practices
+
+1. Use appropriate chunk sizes (typically 500-1000 characters)
+2. Include overlap between chunks (10-20%)
+3. Choose the right embedding model for your domain
+4. Test retrieval quality before optimizing generation
+5. Use metadata filtering when possible

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RAG Q&amp;A</title>
+  <style>
+    :root {
+      --paper: #f4efe6;
+      --ink: #1b1814;
+      --muted: #7d756b;
+      --line: rgba(27, 24, 20, 0.12);
+      --accent: #9a3412;
+      --card: #fffdf8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Segoe UI", sans-serif;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 20px 64px;
+    }
+    h1 { font-size: 2rem; margin: 0 0 8px; }
+    p.lede { color: var(--muted); margin: 0 0 28px; line-height: 1.5; }
+    form { display: flex; gap: 10px; }
+    input {
+      flex: 1;
+      border: 1px solid var(--line);
+      background: var(--card);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font: inherit;
+      color: inherit;
+    }
+    button {
+      border: 0;
+      background: var(--accent);
+      color: white;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    .examples { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 24px; }
+    .examples button {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      font-size: 0.9rem;
+    }
+    article {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px;
+      white-space: pre-wrap;
+      line-height: 1.55;
+    }
+    .error { color: #9f1239; }
+    h2 { font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin: 22px 0 8px; }
+    .source {
+      border-top: 1px solid var(--line);
+      padding: 12px 0;
+      color: #3c372f;
+      white-space: pre-wrap;
+      line-height: 1.45;
+    }
+    @media (max-width: 640px) {
+      form { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>RAG Q&amp;A</h1>
+    <p class="lede">Answers come only from the sample RAG document: chunked at 500 characters, embedded, then retrieved before the model writes.</p>
+    <form id="ask-form">
+      <input id="question" name="question" placeholder="Ask about the sample document" required maxlength="2000" />
+      <button type="submit" id="submit">Ask</button>
+    </form>
+    <div class="examples">
+      <button type="button" data-q="What is RAG?">What is RAG?</button>
+      <button type="button" data-q="What are the benefits of RAG?">Benefits of RAG</button>
+      <button type="button" data-q="What chunk size does the document recommend?">Chunk size</button>
+    </div>
+    <article id="answer" hidden></article>
+    <h2 id="sources-label" hidden>Retrieved chunks</h2>
+    <div id="sources"></div>
+  </main>
+  <script>
+    const form = document.querySelector("#ask-form");
+    const input = document.querySelector("#question");
+    const submit = document.querySelector("#submit");
+    const answer = document.querySelector("#answer");
+    const sources = document.querySelector("#sources");
+    const sourcesLabel = document.querySelector("#sources-label");
+
+    document.querySelectorAll("[data-q]").forEach((button) => {
+      button.addEventListener("click", () => {
+        input.value = button.dataset.q;
+        form.requestSubmit();
+      });
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      submit.disabled = true;
+      answer.hidden = false;
+      answer.className = "";
+      answer.textContent = "Looking up the document…";
+      sources.replaceChildren();
+      sourcesLabel.hidden = true;
+      try {
+        const response = await fetch("/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: input.value }),
+        });
+        const body = await response.json();
+        if (!response.ok) {
+          throw new Error(body.detail || "Request failed");
+        }
+        answer.textContent = body.answer;
+        sourcesLabel.hidden = false;
+        body.sources.forEach((chunk) => {
+          const block = document.createElement("div");
+          block.className = "source";
+          block.textContent = chunk;
+          sources.append(block);
+        });
+      } catch (error) {
+        answer.className = "error";
+        answer.textContent = error.message;
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

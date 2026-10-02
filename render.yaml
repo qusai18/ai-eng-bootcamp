@@ -55,3 +55,14 @@ services:
     dockerfilePath: ./ai-engineering-maryiam-main/maryiam-daily-jobs/Dockerfile
     dockerContext: ./ai-engineering-maryiam-main/maryiam-daily-jobs
     healthCheckPath: /api/health
+
+  - type: web
+    name: rag-qa
+    runtime: docker
+    plan: free
+    dockerfilePath: ./rag-qa/Dockerfile
+    dockerContext: ./rag-qa
+    healthCheckPath: /health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
