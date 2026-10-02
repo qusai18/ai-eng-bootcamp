@@ -21,69 +21,88 @@
       color: var(--ink);
       font-family: "Segoe UI", sans-serif;
     }
-    main {
-      max-width: 720px;
-      margin: 0 auto;
-      padding: 48px 20px 64px;
-    }
+    main { max-width: 820px; margin: 0 auto; padding: 40px 20px 72px; }
     h1 { font-size: 2rem; margin: 0 0 8px; }
-    p.lede { color: var(--muted); margin: 0 0 28px; line-height: 1.5; }
-    form { display: flex; gap: 10px; }
-    input {
-      flex: 1;
-      border: 1px solid var(--line);
+    h2 { font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin: 28px 0 10px; }
+    p { line-height: 1.5; }
+    .lede { color: var(--muted); margin: 0 0 24px; }
+    .card {
       background: var(--card);
-      border-radius: 10px;
-      padding: 12px 14px;
-      font: inherit;
-      color: inherit;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
     }
+    .row, .modes, .docs, .strategies, .scores, .examples { display: flex; flex-wrap: wrap; gap: 8px; }
+    button, input, textarea, select { font: inherit; color: inherit; }
     button {
       border: 0;
       background: var(--accent);
       color: white;
       border-radius: 10px;
-      padding: 12px 16px;
-      font: inherit;
+      padding: 10px 14px;
       cursor: pointer;
     }
-    button:disabled { opacity: 0.6; cursor: wait; }
-    .examples { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 24px; }
-    .examples button {
+    button.ghost, .modes button, .strategies button, .examples button, .score button {
       background: transparent;
       color: var(--ink);
       border: 1px solid var(--line);
-      padding: 8px 10px;
-      font-size: 0.9rem;
     }
-    article {
-      background: var(--card);
+    button.active { background: var(--accent); color: white; border-color: var(--accent); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    textarea, input[type="text"] {
+      width: 100%;
       border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 18px;
-      white-space: pre-wrap;
-      line-height: 1.55;
+      background: var(--card);
+      border-radius: 10px;
+      padding: 12px 14px;
     }
+    textarea { min-height: 120px; resize: vertical; }
+    .doc { flex: 1 1 240px; }
+    .doc label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
+    .strategy { flex: 1 1 240px; text-align: left; padding: 12px; border-radius: 12px; }
+    .strategy strong { display: block; margin-bottom: 4px; }
+    .strategy span { display: block; color: var(--muted); font-size: 0.88rem; line-height: 1.4; }
+    .ask { display: flex; gap: 10px; }
+    article, .compare-item { white-space: pre-wrap; line-height: 1.55; }
     .error { color: #9f1239; }
-    h2 { font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin: 22px 0 8px; }
-    .source {
-      border-top: 1px solid var(--line);
-      padding: 12px 0;
-      color: #3c372f;
-      white-space: pre-wrap;
-      line-height: 1.45;
-    }
+    .source { border-top: 1px solid var(--line); padding: 12px 0; color: #3c372f; white-space: pre-wrap; }
+    .best { border-color: var(--accent); }
+    .meta { color: var(--muted); font-size: 0.9rem; }
     @media (max-width: 640px) {
-      form { flex-direction: column; }
+      .ask { flex-direction: column; }
     }
   </style>
 </head>
 <body>
   <main>
     <h1>RAG Q&amp;A</h1>
-    <p class="lede">Answers come only from the sample RAG document: chunked at 500 characters, embedded, then retrieved before the model writes.</p>
-    <form id="ask-form">
-      <input id="question" name="question" placeholder="Ask about the sample document" required maxlength="2000" />
+    <p class="lede">Index one document or several, pick a chunking strategy, then score the answer from 0 to 5. The highest average score is the strategy to keep.</p>
+
+    <h2>Documents</h2>
+    <div class="modes" id="modes">
+      <button type="button" class="active" data-mode="single">Single document</button>
+      <button type="button" data-mode="multiple">Multiple documents</button>
+    </div>
+    <div class="docs" id="docs"></div>
+    <div class="row" style="margin-top: 10px;">
+      <button type="button" class="ghost" id="add-doc">Add document</button>
+      <button type="button" class="ghost" id="use-sample">Use sample</button>
+      <label class="ghost" style="border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; cursor: pointer;">
+        Upload .txt or .md
+        <input id="files" type="file" accept=".txt,.md,text/plain,text/markdown" multiple hidden />
+      </label>
+    </div>
+
+    <h2>Chunking strategy</h2>
+    <div class="strategies" id="strategies"></div>
+    <div class="row" style="margin-top: 12px;">
+      <button type="button" id="index-btn">Index documents</button>
+    </div>
+    <p class="meta" id="index-status"></p>
+
+    <h2>Ask</h2>
+    <form class="ask" id="ask-form">
+      <input id="question" type="text" placeholder="Ask about the ingested documents" required maxlength="2000" />
       <button type="submit" id="submit">Ask</button>
     </form>
     <div class="examples">
@@ -91,58 +110,336 @@
       <button type="button" data-q="What are the benefits of RAG?">Benefits of RAG</button>
       <button type="button" data-q="What chunk size does the document recommend?">Chunk size</button>
     </div>
-    <article id="answer" hidden></article>
+    <button type="button" class="ghost" id="compare">Compare all strategies</button>
+
+    <article class="card" id="answer" hidden></article>
+    <div class="score" id="score" hidden></div>
     <h2 id="sources-label" hidden>Retrieved chunks</h2>
     <div id="sources"></div>
+    <div id="comparisons"></div>
+
+    <h2>Best strategy</h2>
+    <article class="card best" id="best">Rate an answer to see which chunking strategy you prefer.</article>
+    <div class="scores" id="scores"></div>
   </main>
   <script>
-    const form = document.querySelector("#ask-form");
-    const input = document.querySelector("#question");
-    const submit = document.querySelector("#submit");
-    const answer = document.querySelector("#answer");
-    const sources = document.querySelector("#sources");
+    const state = {
+      mode: "single",
+      strategy: "recursive",
+      strategies: [],
+      last: null,
+    };
+
+    const docsEl = document.querySelector("#docs");
+    const strategiesEl = document.querySelector("#strategies");
+    const answerEl = document.querySelector("#answer");
+    const sourcesEl = document.querySelector("#sources");
     const sourcesLabel = document.querySelector("#sources-label");
+    const scoreEl = document.querySelector("#score");
+    const bestEl = document.querySelector("#best");
+    const scoresEl = document.querySelector("#scores");
+    const statusEl = document.querySelector("#index-status");
+    const questionEl = document.querySelector("#question");
 
-    document.querySelectorAll("[data-q]").forEach((button) => {
-      button.addEventListener("click", () => {
-        input.value = button.dataset.q;
-        form.requestSubmit();
+    function docField(name, text) {
+      const wrap = document.createElement("div");
+      wrap.className = "doc";
+      const label = document.createElement("label");
+      label.textContent = name;
+      const area = document.createElement("textarea");
+      area.value = text || "";
+      area.placeholder = "Paste document text";
+      wrap.append(label, area);
+      return wrap;
+    }
+
+    function renderDocs() {
+      const existing = [...docsEl.querySelectorAll("textarea")].map((area) => area.value);
+      const total = state.mode === "single" ? 1 : Math.max(2, existing.length || 2);
+      docsEl.replaceChildren();
+      for (let i = 0; i < total; i += 1) {
+        docsEl.append(docField(`Document ${i + 1}`, existing[i] || ""));
+      }
+    }
+
+    function collectDocuments() {
+      return [...docsEl.querySelectorAll(".doc")].map((wrap, index) => ({
+        name: wrap.querySelector("label").textContent || `Document ${index + 1}`,
+        text: wrap.querySelector("textarea").value.trim(),
+      })).filter((doc) => doc.text);
+    }
+
+    function renderStrategies() {
+      strategiesEl.replaceChildren();
+      state.strategies.forEach((item) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `strategy${item.id === state.strategy ? " active" : ""}`;
+        const suggestedId = state.mode === "multiple" ? "document" : "recursive";
+        const title = document.createElement("strong");
+        title.textContent = item.id === suggestedId ? `${item.name} · suggested` : item.name;
+        const summary = document.createElement("span");
+        summary.textContent = `${item.summary} Best for: ${item.best_for}.`;
+        button.append(title, summary);
+        button.addEventListener("click", () => {
+          state.strategy = item.id;
+          renderStrategies();
+        });
+        strategiesEl.append(button);
       });
-    });
+    }
 
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    function showRecommendation(recommendation, scores) {
+      if (recommendation?.strategy) {
+        bestEl.textContent = recommendation.reason;
+      } else if (recommendation?.reason) {
+        bestEl.textContent = `No ratings yet. ${recommendation.reason}`;
+      }
+      scoresEl.replaceChildren();
+      (scores || []).filter((row) => row.ratings > 0).forEach((row) => {
+        const pill = document.createElement("button");
+        pill.type = "button";
+        pill.className = "ghost";
+        pill.textContent = `${row.name}: ${row.average} / 5 (${row.ratings})`;
+        scoresEl.append(pill);
+      });
+    }
+
+    async function loadStrategies() {
+      const response = await fetch("/strategies");
+      const body = await response.json();
+      state.strategies = body.strategies;
+      if (!state.strategies.some((item) => item.id === state.strategy)) {
+        state.strategy = body.mode === "multiple" ? "document" : "recursive";
+      }
+      renderStrategies();
+      showRecommendation(body.recommendation, body.scores);
+    }
+
+    function showAnswer(result) {
+      state.last = result;
+      answerEl.hidden = false;
+      answerEl.className = "card";
+      answerEl.textContent = result.answer;
+      sourcesLabel.hidden = false;
+      sourcesEl.replaceChildren();
+      result.sources.forEach((chunk) => {
+        const block = document.createElement("div");
+        block.className = "source";
+        block.textContent = chunk;
+        sourcesEl.append(block);
+      });
+      scoreEl.hidden = false;
+      scoreEl.replaceChildren();
+      const label = document.createElement("span");
+      label.className = "meta";
+      label.textContent = `Score this ${result.name || result.strategy} answer`;
+      scoreEl.append(label);
+      for (let score = 0; score <= 5; score += 1) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = String(score);
+        button.addEventListener("click", () => sendScore(score, button));
+        scoreEl.append(button);
+      }
+    }
+
+    async function sendScore(score, button) {
+      if (!state.last) return;
+      button.disabled = true;
+      const response = await fetch("/rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          strategy: state.last.strategy,
+          question: state.last.question,
+          score,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        answerEl.className = "card error";
+        answerEl.textContent = body.detail || "Could not save the score";
+        return;
+      }
+      showRecommendation(body.recommendation, body.scores);
+    }
+
+    async function indexDocuments() {
+      const documents = collectDocuments();
+      if (!documents.length) {
+        statusEl.textContent = "Paste or upload at least one document.";
+        return false;
+      }
+      if (state.mode === "single" && documents.length !== 1) {
+        statusEl.textContent = "Single-document mode uses the first box only.";
+      }
+      const payloadDocs = state.mode === "single" ? [documents[0]] : documents;
+      statusEl.textContent = "Indexing…";
+      const response = await fetch("/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: state.mode, strategy: state.strategy, documents: payloadDocs }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        statusEl.textContent = body.detail || "Indexing failed";
+        return false;
+      }
+      statusEl.textContent = `Indexed ${body.documents.length} document(s) into ${body.chunk_count} ${body.strategy} chunks.`;
+      showRecommendation(body.recommendation, null);
+      await loadStrategies();
+      return true;
+    }
+
+    async function ask(question) {
+      const ready = await indexDocuments();
+      if (!ready) return;
+      const submit = document.querySelector("#submit");
       submit.disabled = true;
-      answer.hidden = false;
-      answer.className = "";
-      answer.textContent = "Looking up the document…";
-      sources.replaceChildren();
+      answerEl.hidden = false;
+      answerEl.className = "card";
+      answerEl.textContent = "Looking up the documents…";
+      sourcesEl.replaceChildren();
       sourcesLabel.hidden = true;
+      scoreEl.hidden = true;
       try {
         const response = await fetch("/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: input.value }),
+          body: JSON.stringify({ question, strategy: state.strategy }),
         });
         const body = await response.json();
-        if (!response.ok) {
-          throw new Error(body.detail || "Request failed");
-        }
-        answer.textContent = body.answer;
-        sourcesLabel.hidden = false;
-        body.sources.forEach((chunk) => {
-          const block = document.createElement("div");
-          block.className = "source";
-          block.textContent = chunk;
-          sources.append(block);
-        });
+        if (!response.ok) throw new Error(body.detail || "Request failed");
+        const match = state.strategies.find((item) => item.id === body.strategy);
+        showAnswer({ ...body, question, name: match ? match.name : body.strategy });
       } catch (error) {
-        answer.className = "error";
-        answer.textContent = error.message;
+        answerEl.className = "card error";
+        answerEl.textContent = error.message;
       } finally {
         submit.disabled = false;
       }
+    }
+
+    document.querySelector("#modes").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-mode]");
+      if (!button) return;
+      state.mode = button.dataset.mode;
+      state.strategy = state.mode === "multiple" ? "document" : "recursive";
+      document.querySelectorAll("#modes button").forEach((item) => {
+        item.classList.toggle("active", item === button);
+      });
+      renderDocs();
+      renderStrategies();
     });
+
+    document.querySelector("#add-doc").addEventListener("click", () => {
+      if (state.mode !== "multiple") {
+        state.mode = "multiple";
+        document.querySelectorAll("#modes button").forEach((item) => {
+          item.classList.toggle("active", item.dataset.mode === "multiple");
+        });
+        state.strategy = "document";
+        renderStrategies();
+      }
+      if (docsEl.children.length >= 8) return;
+      docsEl.append(docField(`Document ${docsEl.children.length + 1}`, ""));
+    });
+
+    document.querySelector("#use-sample").addEventListener("click", async () => {
+      const body = await (await fetch("/sample")).json();
+      state.mode = "single";
+      state.strategy = "recursive";
+      document.querySelectorAll("#modes button").forEach((item) => {
+        item.classList.toggle("active", item.dataset.mode === "single");
+      });
+      docsEl.replaceChildren(docField(body.name, body.text));
+      renderStrategies();
+    });
+
+    document.querySelector("#files").addEventListener("change", async (event) => {
+      const files = [...event.target.files];
+      if (!files.length) return;
+      state.mode = files.length > 1 ? "multiple" : state.mode;
+      document.querySelectorAll("#modes button").forEach((item) => {
+        item.classList.toggle("active", item.dataset.mode === state.mode);
+      });
+      const loaded = await Promise.all(files.slice(0, 8).map(async (file) => ({
+        name: file.name,
+        text: await file.text(),
+      })));
+      docsEl.replaceChildren();
+      loaded.forEach((doc) => docsEl.append(docField(doc.name, doc.text)));
+      if (state.mode === "multiple") state.strategy = "document";
+      renderStrategies();
+    });
+
+    document.querySelector("#index-btn").addEventListener("click", indexDocuments);
+    document.querySelector("#ask-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      ask(questionEl.value.trim());
+    });
+    document.querySelectorAll("[data-q]").forEach((button) => {
+      button.addEventListener("click", () => {
+        questionEl.value = button.dataset.q;
+        ask(button.dataset.q);
+      });
+    });
+
+    document.querySelector("#compare").addEventListener("click", async () => {
+      const question = questionEl.value.trim();
+      if (!question) {
+        statusEl.textContent = "Enter a question before comparing strategies.";
+        return;
+      }
+      const ready = await indexDocuments();
+      if (!ready) return;
+      const button = document.querySelector("#compare");
+      button.disabled = true;
+      const box = document.querySelector("#comparisons");
+      box.textContent = "Running every strategy…";
+      try {
+        const response = await fetch("/compare", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question }),
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.detail || "Compare failed");
+        box.replaceChildren();
+        body.results.forEach((result) => {
+          const item = document.createElement("article");
+          item.className = "card";
+          item.style.marginTop = "12px";
+          const title = document.createElement("strong");
+          title.textContent = `${result.name} · ${result.chunk_count} chunks`;
+          const text = document.createElement("p");
+          text.textContent = result.answer;
+          const rating = document.createElement("div");
+          rating.className = "score";
+          for (let score = 0; score <= 5; score += 1) {
+            const scoreButton = document.createElement("button");
+            scoreButton.type = "button";
+            scoreButton.textContent = String(score);
+            scoreButton.addEventListener("click", async () => {
+              state.last = { strategy: result.strategy, question };
+              await sendScore(score, scoreButton);
+            });
+            rating.append(scoreButton);
+          }
+          item.append(title, text, rating);
+          box.append(item);
+        });
+        showRecommendation(body.recommendation, null);
+      } catch (error) {
+        box.textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    renderDocs();
+    loadStrategies();
   </script>
 </body>
 </html>

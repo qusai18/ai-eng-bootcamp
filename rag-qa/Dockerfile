@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py sample_rag_document.txt index.html ./
+COPY main.py chunking.py sample_rag_document.txt index.html ./
 
 ENV PORT=8000
 EXPOSE 8000
