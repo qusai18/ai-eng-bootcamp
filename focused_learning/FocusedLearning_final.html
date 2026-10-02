@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FocusedLearning — Architecture Pattern Capture</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='none' stroke='%23C8401A' stroke-width='2'/%3E%3Ccircle cx='12' cy='12' r='3' fill='%23C8401A'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='none' stroke='%23006d77' stroke-width='2'/%3E%3Ccircle cx='12' cy='12' r='3' fill='%23006d77'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400..500;1,6..72,400..500&display=swap" rel="stylesheet">
@@ -13,10 +13,10 @@
   --paper:#F4F1E8; --paper-2:#EAE6D8; --card:#FBF9F2;
   --ink:#191510; --ink-2:#544D3D; --ink-3:#8B8471;
   --line:#DAD4C4; --line-2:#C8C1AC;
-  --acc:#C8401A; --acc-deep:#A33412; --acc-soft:rgba(200,64,26,.12);
-  --side:#161209; --side-ink:#EFEAD9; --side-dim:rgba(239,234,217,.55); --side-line:rgba(239,234,217,.13); --acc-bright:#F0602F;
+  --acc:#006d77; --acc-deep:#A33412; --acc-soft:rgba(200,64,26,.12);
+  --side:#161209; --side-ink:#EFEAD9; --side-dim:rgba(239,234,217,.55); --side-line:rgba(239,234,217,.13); --acc-bright:#007e87;
   --f-sans:'Space Grotesk',sans-serif; --f-mono:'JetBrains Mono',monospace; --f-serif:'Newsreader',serif;
-  --dgi:#191510; --dgd:#8B8471; --dga:#C8401A; --dgt:#544D3D;
+  --dgi:#191510; --dgd:#8B8471; --dga:#006d77; --dgt:#544D3D;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%}
@@ -27,7 +27,7 @@ button{font-family:inherit;color:inherit}
 *::-webkit-scrollbar{width:10px;height:10px}
 *::-webkit-scrollbar-thumb{background:var(--line-2);border:3px solid var(--paper);border-radius:6px}
 #sidebar *::-webkit-scrollbar-thumb{background:rgba(239,234,217,.2);border-color:var(--side)}
-#sidebar{--dgi:#EFEAD9;--dgd:rgba(239,234,217,.45);--dga:#F0602F;--dgt:rgba(239,234,217,.72)}
+#sidebar{--dgi:#EFEAD9;--dgd:rgba(239,234,217,.45);--dga:#007e87;--dgt:rgba(239,234,217,.72)}
 .ic{flex:none}
 
 #app{display:flex;height:100vh}
@@ -404,6 +404,27 @@ mark.flash{animation:flash 1.1s}
   .gh-btn span{display:none}
   .gh-btn{padding:0 13px}
 }
+
+/* FocusedLearning editorial design */
+:root{--paper:#fff;--paper-2:#eef4f4;--card:#fff;--ink:#142d35;--ink-2:#3f5961;--ink-3:#61767c;--line:#dce6e8;--line-2:#b8cbce;--acc:#006d77;--acc-deep:#004e58;--acc-soft:rgba(0,109,119,.10);--side:#fff;--side-ink:#17343d;--side-dim:#587078;--side-line:#dce6e8;--acc-bright:#006d77;--f-sans:Arial,Helvetica,sans-serif;--f-mono:Arial,Helvetica,sans-serif;--f-serif:Georgia,serif;--dgi:#17343d;--dgd:#819b9f;--dga:#007e87;--dgt:#44616a}
+#sidebar{width:284px;border-right:1px solid var(--line);--dgi:#17343d;--dgd:#819b9f;--dga:#007e87;--dgt:#44616a}
+#main{background:#f7f9f9;background-image:none;min-width:0}
+.sb-head{padding:28px 19px;gap:10px}.sb-head>svg{width:30px;flex:none}.logo-spin{animation:none}
+.wordmark{font-size:16px;letter-spacing:-.65px;font-weight:700}.wordmark b{color:var(--acc)}.wordsub{font-size:9px;letter-spacing:.16em;margin-top:7px}
+.add-slot{background:var(--acc);border:1px solid var(--acc);color:white;padding:14px 9px;font-size:12px;letter-spacing:.015em;font-weight:700;text-transform:none}.add-slot:hover{background:var(--acc-deep);color:white}
+.sb-search input{background:#f4f7f7;border-color:var(--line);font-size:12px;padding-top:12px;padding-bottom:12px}.sb-search input::placeholder{color:#61767c}
+.nav-item{font-size:13px;letter-spacing:0;text-transform:none;padding:13px 12px}.nav-item.active{background:#e7f3f3;color:#005a64;box-shadow:inset 3px 0 0 var(--acc)}.nav-item:hover{background:#f1f6f6}.nav-item .cnt,.nav-item .due{font-size:11px}.nav-item .due{color:white}
+.list-label{font-size:10px;letter-spacing:.13em;padding-top:22px}.doc-item:hover,.doc-item.active{background:#eef5f5}.doc-name{font-size:13px}.doc-meta{font-size:10px;line-height:1.5}.dg-card,.dg-chip{background:#f6fafa;border-color:#d6e4e5}.dg-card:hover{background:#e9f4f4}.dg-card .dg-name{font-size:12px}.dg-card .dg-conf{font-size:11px}.dg-label,.dg-empty,.sb-empty{font-size:11px;line-height:1.6}
+.sb-foot{padding:18px 16px}.st-row{font-size:9px;letter-spacing:.08em}.st-track{background:#e1ecee}.foot-btns button{font-size:11px;letter-spacing:.03em;padding:10px}
+.home{display:block;text-align:left;padding:0;min-height:100%}.hero{position:relative;background:#123c45;color:white;padding:54px clamp(24px,5vw,78px) 48px;overflow:hidden}.hero:after{content:'';position:absolute;width:330px;height:330px;border:70px solid rgba(60,194,195,.16);border-radius:50%;right:-200px;top:-150px;pointer-events:none}.hero-top{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:40px}.hero-kicker{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#a2dfe0}.hero-status{font-size:11px;color:#c1dcdf}.hero-status:before{content:'';display:inline-block;width:6px;height:6px;background:#97d97a;border-radius:50%;margin-right:8px}.home-h{font-size:clamp(38px,4.4vw,68px);font-weight:500;letter-spacing:-.045em;line-height:1.02;max-width:16ch;margin:0}.home-h em{color:#9de0db}.home-sub{font-size:16px;line-height:1.65;max-width:60ch;margin:24px 0 0;color:#d1e4e7}.hero-rule{display:flex;gap:4px;margin-top:34px;width:160px;height:5px}.hero-rule span{flex:1;background:#33b5ba}.hero-rule span:nth-child(2){background:#86c85b}.hero-rule span:nth-child(3){background:#f5a65b}.hero-rule span:nth-child(4){background:#d65c91}
+.home-content{padding:34px clamp(24px,5vw,78px) 46px;max-width:1240px}.capture-heading{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:18px}.capture-heading h2{font-size:24px;letter-spacing:-.6px}.capture-heading span{font-size:11px;color:var(--ink-3)}.capture-grid{display:grid;grid-template-columns:1.15fr 1fr;gap:20px}.capture-card{background:white;border:1px solid var(--line);padding:24px;min-width:0}.capture-step{font-size:10px;text-transform:uppercase;letter-spacing:.13em;font-weight:700;color:var(--acc);margin-bottom:15px}.drop{width:100%;margin:0;text-align:center;padding:26px 16px;border:1px dashed #80aeb3;background:#f4fafa;min-height:145px;display:flex;flex-direction:column;justify-content:center}.drop:hover,.drop.over{background:#e6f4f4;transform:none}.drop-big{font-size:15px;letter-spacing:0;text-transform:none;font-weight:700;line-height:1.5}.drop-big span{display:block;color:var(--ink-3);font-size:12px;font-weight:400}.drop-fmt{gap:5px;margin-top:15px}.fmt{font-size:9px;letter-spacing:.025em;padding:3px 5px;border-color:#cbdedf}.fmt.hot{color:#00636c;border-color:#b8d9da}.repo-label{font-size:17px;font-weight:700;line-height:1.3}.gh-bar{width:100%;margin-top:17px;border-color:#b9cccf;min-height:46px}.gh-bar input{font-size:12px;padding-left:8px}.gh-btn{background:var(--acc);padding:0 12px;letter-spacing:0;font-size:12px;text-transform:none;font-weight:700}.gh-btn:hover{background:var(--acc-deep)}.gh-hint{font-size:11px;line-height:1.6;margin-top:12px;letter-spacing:0;max-width:none}.home-privacy{font-size:11px;line-height:1.6;margin:18px 0 0;letter-spacing:0}.home-stats{margin:0 0 20px;color:#627a80;font-size:11px;letter-spacing:.05em}.home-recent{justify-content:flex-start;margin-top:22px;font-size:12px}.home-recent button{padding:8px;border:1px solid var(--line);background:white}.learning-benefits{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:32px;padding-top:26px;border-top:1px solid var(--line)}.learning-benefits strong{display:block;font-size:15px;margin-bottom:8px}.learning-benefits p{font-size:12px;line-height:1.7;color:var(--ink-3)}
+.view{max-width:1100px;padding:48px 48px 100px}.title{font-size:42px;font-weight:500;letter-spacing:-.035em}.kicker{font-size:11px;letter-spacing:.14em;font-weight:700}.meta-line{font-size:12px}.btn{font-size:12px;letter-spacing:.025em;text-transform:none;padding:12px 18px;border-color:var(--acc);color:var(--acc);font-weight:700}.btn.primary{background:var(--acc);color:#fff}.btn:hover,.btn.primary:hover{background:var(--acc-deep);color:white}.sec-head{margin-top:40px}.sec-title{font-size:13px;font-weight:700;letter-spacing:.08em}.sec-note{font-size:11px;line-height:1.5}.plist{background:white;border:1px solid var(--line)}.prow{padding:0 18px}.prow:last-child{border-bottom:0}.prow-head{padding:23px 0}.prow-name{font-size:19px;font-weight:600}.cat-tag{font-size:9px;letter-spacing:.06em}.p-desc{font-size:15px;line-height:1.7}.p-diagram{background:#f1f7f7;border-color:#d5e5e6}.ana{background:#edf6f6;border:0;border-left:3px solid #007e87;padding:18px}.ana-tag{font-size:10px;font-weight:700;letter-spacing:.08em}.ev{color:#344e56;font-size:16px}.reader-body{color:#294650}.reader-bar{font-size:11px;letter-spacing:.04em}.gmodel{background:white}.refchip,.webchip,.wbtn{font-size:11px;letter-spacing:0}.panel,.qcard{background:white}.proc{max-width:920px}.proc-note{font-size:13px;line-height:1.7}.sig-chip{font-size:11px}.mobile-bar{background:white;border-bottom:1px solid var(--line)}
+@media(min-width:1600px){.home-content{margin:auto}.hero{padding-left:8%;padding-right:8%}}
+@media(max-width:1150px){.capture-grid{grid-template-columns:1fr}.capture-card{padding:20px}.hero{padding-top:40px}.hero-top{margin-bottom:28px}.view{padding:36px 28px 80px}}
+@media(max-width:920px){#sidebar{width:284px}.home{padding-top:0}.hero{padding-top:32px}.hero-top{margin-bottom:28px}.hero-status{display:none}.home-h{font-size:48px}.view{padding:32px 22px 80px}.mobile-bar .wordmark{font-size:15px;letter-spacing:-.5px}}
+@media(max-width:540px){.hero{padding:30px 22px}.home-h{font-size:41px}.home-sub{font-size:14px}.home-content{padding:26px 18px 42px}.capture-heading{display:block}.capture-heading span{display:block;margin-top:8px}.learning-benefits{grid-template-columns:1fr;gap:18px}.capture-card{padding:16px}.hero-top{margin-bottom:24px}.view .title{font-size:32px}.prow{padding:0 12px}.prow-name{font-size:16px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.bp text,.bp .fadein{opacity:1}.bp .draw{stroke-dashoffset:0}}
+
 </style>
 </head>
 <body>
@@ -532,7 +553,7 @@ const LOGO = '<svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke
   '<g class="logo-spin"><circle cx="18" cy="18" r="16.5" stroke-width="1" stroke-dasharray="3 5" opacity=".55"/></g>' +
   '<circle cx="18" cy="18" r="12.5" stroke-width="1.4" opacity=".9"/>' +
   '<path d="M18 1.5v7M18 27.5v7M1.5 18h7M27.5 18h7" stroke-width="1.4"/>' +
-  '<circle cx="18" cy="18" r="2.3" fill="#F0602F" stroke="none"/></svg>';
+  '<circle cx="18" cy="18" r="2.3" fill="#007e87" stroke="none"/></svg>';
 const SPIN = '<svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.3" class="ic" style="animation:spin 1.3s linear infinite;transform-origin:center"><circle cx="7.5" cy="7.5" r="5"/><path d="M7.5 0v3M7.5 12v3M0 7.5h3M12 7.5h3"/></svg>';
 const RING = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="7" cy="7" r="5.4" opacity=".55"/></svg>';
 const CHECK = ic('check', 14);
@@ -702,7 +723,7 @@ const EDGES = [
   ['strangler','micro'],['monolith','micro'],['scaling','breaker'],['grpc','cqrs']
 ];
 const CATCOL = {
-  Structural:'#C8401A', Design:'#7A5CB8', Data:'#2E7D6B', Messaging:'#B07A1F',
+  Structural:'#006d77', Design:'#7A5CB8', Data:'#2E7D6B', Messaging:'#B07A1F',
   API:'#3B6FA8', Platform:'#6B4FA0', Resilience:'#A83A5B', Process:'#5B7326'
 };
 
@@ -1792,23 +1813,25 @@ function viewHome() {
   const pats = store.docs.reduce((s, d) => s + d.analysis.patterns.length, 0);
   const due = dueAll();
   const recent = store.docs.slice().sort((a, b) => b.addedAt - a.addedAt).slice(0, 3);
-  return '<div class="home">' +
-    (n ? '<div class="home-stats">' + n + ' documents \u00B7 <b>' + pats + '</b> patterns captured \u00B7 ' + due + ' due for review</div>' : '') +
-    BLUEPRINT +
-    '<h1 class="home-h">Drop a document.<br>I\u2019ll turn it into <em>focused learning.</em></h1>' +
-    '<p class="home-sub">FocusedLearning reads your PDFs, PowerPoint decks and images - or pulls the docs from a public GitHub repo. Every detected pattern gets a diagram, a plain-words analogy, a relationship graph, and connections out to the live web. Then quizzes make it stick.</p>' +
-    '<div class="drop" id="dropZone"><div class="drop-big">Click or drop files <span>-</span> capture patterns</div>' +
-      '<div class="drop-fmt">' + ['PDF', 'DOCX', 'PPTX', 'IMAGES', 'MD', 'TXT', 'HTML', 'RTF'].map((f, i) => '<span class="fmt' + (i < 4 ? ' hot' : '') + '">' + f + '</span>').join('') + '</div></div>' +
-    '<div class="gh-bar"><span class="gh-ic">' + ic('git', 15) + '</span>' +
-      '<input id="ghInput" placeholder="github.com/owner/repo - pull README + docs" spellcheck="false" autocomplete="off">' +
-      '<button class="gh-btn" id="ghBtn">Fetch &amp; analyze</button></div>' +
-    '<div class="gh-hint">Public repos - the README, docs/ and architecture-named markdown are fetched via the GitHub API, right from your browser. Past a specific file or /tree/ URL and only that is read.</div>' +
-    '<div class="home-privacy">Files never leave your browser. Only outbound calls: GitHub\u2019s API for repos and Wikipedia\u2019s API when you pull a summary - everything else opens in a new tab.</div>' +
-    (recent.length ? '<div class="home-recent"><span>RECENT:</span>' + recent.map(d => '<button data-open="' + d.id + '">' + esc(d.name.length > 26 ? d.name.slice(0, 26) + '...' : d.name) + ' \u00B7 ' + d.analysis.patterns.length + '</button>').join('') + '</div>' : '') +
-  '</div>';
+  return '<div class="home"><section class="hero"><div class="hero-top"><div class="hero-kicker">FocusedLearning / Architecture insights</div><div class="hero-status">Your personal learning workspace</div></div>' +
+    '<h1 class="home-h">Turn information<br>into <em>understanding.</em></h1>' +
+    '<p class="home-sub">Discover the architecture patterns in your documents. Connect the ideas, see the bigger picture, and build knowledge that stays with you.</p>' +
+    '<div class="hero-rule" aria-hidden="true"><span></span><span></span><span></span><span></span></div></section><div class="home-content">' +
+    (n ? '<div class="home-stats">' + n + ' documents · <b>' + pats + '</b> patterns captured · ' + due + ' due for review</div>' : '') +
+    '<div class="capture-heading"><h2>Start with a source.</h2><span>Documents, diagrams, or a repository</span></div>' +
+    '<div class="capture-grid"><section class="capture-card"><div class="capture-step">01 / Upload a document</div>' +
+    '<div class="drop" id="dropZone" role="button" tabindex="0" aria-label="Choose documents to analyze"><div class="drop-big">Drop your files here<span>or click to browse</span></div><div class="drop-fmt">' +
+    ['PDF','DOCX','PPTX','IMAGES','MD','TXT','HTML','RTF'].map((f,i) => '<span class="fmt' + (i < 4 ? ' hot' : '') + '">' + f + '</span>').join('') + '</div></div></section>' +
+    '<section class="capture-card"><div class="capture-step">02 / Or explore a repository</div><label class="repo-label" for="ghInput">Learn from the source.</label>' +
+    '<div class="gh-bar"><span class="gh-ic">' + ic('git',15) + '</span><input id="ghInput" placeholder="github.com/owner/repo" spellcheck="false" autocomplete="off"><button class="gh-btn" id="ghBtn">Analyze →</button></div>' +
+    '<p class="gh-hint">Enter a public GitHub repository, folder, or file URL. We read its README and architecture documentation.</p></section></div>' +
+    '<p class="home-privacy">Your files are processed in your browser. Document readers and image recognition require internet access.</p>' +
+    (recent.length ? '<div class="home-recent"><span>Recent sources</span>' + recent.map(d => '<button data-open="' + d.id + '">' + esc(d.name.length > 26 ? d.name.slice(0,26) + '...' : d.name) + ' · ' + d.analysis.patterns.length + ' patterns</button>').join('') + '</div>' : '') +
+    '<div class="learning-benefits"><div><strong>See the patterns.</strong><p>Explore diagrams and evidence drawn from your source.</p></div><div><strong>Connect the ideas.</strong><p>Follow relationships, practical analogies, and further reading.</p></div><div><strong>Make it stick.</strong><p>Practice recall and return to the concepts that need attention.</p></div></div></div></div>';
 }
 function bindHome() {
   $('#dropZone').onclick = () => $('#fileInput').click();
+  $('#dropZone').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#fileInput').click(); } };
   const ghGo = () => captureFromGitHub($('#ghInput').value);
   $('#ghBtn').onclick = ghGo;
   $('#ghInput').addEventListener('keydown', e => { if (e.key === 'Enter') ghGo(); });

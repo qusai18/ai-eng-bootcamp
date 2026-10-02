@@ -105,7 +105,7 @@ const LOGO = '<svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke
   '<g class="logo-spin"><circle cx="18" cy="18" r="16.5" stroke-width="1" stroke-dasharray="3 5" opacity=".55"/></g>' +
   '<circle cx="18" cy="18" r="12.5" stroke-width="1.4" opacity=".9"/>' +
   '<path d="M18 1.5v7M18 27.5v7M1.5 18h7M27.5 18h7" stroke-width="1.4"/>' +
-  '<circle cx="18" cy="18" r="2.3" fill="#F0602F" stroke="none"/></svg>';
+  '<circle cx="18" cy="18" r="2.3" fill="#007e87" stroke="none"/></svg>';
 const SPIN = '<svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.3" class="ic" style="animation:spin 1.3s linear infinite;transform-origin:center"><circle cx="7.5" cy="7.5" r="5"/><path d="M7.5 0v3M7.5 12v3M0 7.5h3M12 7.5h3"/></svg>';
 const RING = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="7" cy="7" r="5.4" opacity=".55"/></svg>';
 const CHECK = ic('check', 14);
@@ -275,7 +275,7 @@ const EDGES = [
   ['strangler','micro'],['monolith','micro'],['scaling','breaker'],['grpc','cqrs']
 ];
 const CATCOL = {
-  Structural:'#C8401A', Design:'#7A5CB8', Data:'#2E7D6B', Messaging:'#B07A1F',
+  Structural:'#006d77', Design:'#7A5CB8', Data:'#2E7D6B', Messaging:'#B07A1F',
   API:'#3B6FA8', Platform:'#6B4FA0', Resilience:'#A83A5B', Process:'#5B7326'
 };
 
@@ -1365,23 +1365,25 @@ function viewHome() {
   const pats = store.docs.reduce((s, d) => s + d.analysis.patterns.length, 0);
   const due = dueAll();
   const recent = store.docs.slice().sort((a, b) => b.addedAt - a.addedAt).slice(0, 3);
-  return '<div class="home">' +
-    (n ? '<div class="home-stats">' + n + ' documents \u00B7 <b>' + pats + '</b> patterns captured \u00B7 ' + due + ' due for review</div>' : '') +
-    BLUEPRINT +
-    '<h1 class="home-h">Drop a document.<br>I\u2019ll turn it into <em>focused learning.</em></h1>' +
-    '<p class="home-sub">FocusedLearning reads your PDFs, PowerPoint decks and images - or pulls the docs from a public GitHub repo. Every detected pattern gets a diagram, a plain-words analogy, a relationship graph, and connections out to the live web. Then quizzes make it stick.</p>' +
-    '<div class="drop" id="dropZone"><div class="drop-big">Click or drop files <span>-</span> capture patterns</div>' +
-      '<div class="drop-fmt">' + ['PDF', 'DOCX', 'PPTX', 'IMAGES', 'MD', 'TXT', 'HTML', 'RTF'].map((f, i) => '<span class="fmt' + (i < 4 ? ' hot' : '') + '">' + f + '</span>').join('') + '</div></div>' +
-    '<div class="gh-bar"><span class="gh-ic">' + ic('git', 15) + '</span>' +
-      '<input id="ghInput" placeholder="github.com/owner/repo - pull README + docs" spellcheck="false" autocomplete="off">' +
-      '<button class="gh-btn" id="ghBtn">Fetch &amp; analyze</button></div>' +
-    '<div class="gh-hint">Public repos - the README, docs/ and architecture-named markdown are fetched via the GitHub API, right from your browser. Past a specific file or /tree/ URL and only that is read.</div>' +
-    '<div class="home-privacy">Files never leave your browser. Only outbound calls: GitHub\u2019s API for repos and Wikipedia\u2019s API when you pull a summary - everything else opens in a new tab.</div>' +
-    (recent.length ? '<div class="home-recent"><span>RECENT:</span>' + recent.map(d => '<button data-open="' + d.id + '">' + esc(d.name.length > 26 ? d.name.slice(0, 26) + '...' : d.name) + ' \u00B7 ' + d.analysis.patterns.length + '</button>').join('') + '</div>' : '') +
-  '</div>';
+  return '<div class="home"><section class="hero"><div class="hero-top"><div class="hero-kicker">FocusedLearning / Architecture insights</div><div class="hero-status">Your personal learning workspace</div></div>' +
+    '<h1 class="home-h">Turn information<br>into <em>understanding.</em></h1>' +
+    '<p class="home-sub">Discover the architecture patterns in your documents. Connect the ideas, see the bigger picture, and build knowledge that stays with you.</p>' +
+    '<div class="hero-rule" aria-hidden="true"><span></span><span></span><span></span><span></span></div></section><div class="home-content">' +
+    (n ? '<div class="home-stats">' + n + ' documents · <b>' + pats + '</b> patterns captured · ' + due + ' due for review</div>' : '') +
+    '<div class="capture-heading"><h2>Start with a source.</h2><span>Documents, diagrams, or a repository</span></div>' +
+    '<div class="capture-grid"><section class="capture-card"><div class="capture-step">01 / Upload a document</div>' +
+    '<div class="drop" id="dropZone" role="button" tabindex="0" aria-label="Choose documents to analyze"><div class="drop-big">Drop your files here<span>or click to browse</span></div><div class="drop-fmt">' +
+    ['PDF','DOCX','PPTX','IMAGES','MD','TXT','HTML','RTF'].map((f,i) => '<span class="fmt' + (i < 4 ? ' hot' : '') + '">' + f + '</span>').join('') + '</div></div></section>' +
+    '<section class="capture-card"><div class="capture-step">02 / Or explore a repository</div><label class="repo-label" for="ghInput">Learn from the source.</label>' +
+    '<div class="gh-bar"><span class="gh-ic">' + ic('git',15) + '</span><input id="ghInput" placeholder="github.com/owner/repo" spellcheck="false" autocomplete="off"><button class="gh-btn" id="ghBtn">Analyze →</button></div>' +
+    '<p class="gh-hint">Enter a public GitHub repository, folder, or file URL. We read its README and architecture documentation.</p></section></div>' +
+    '<p class="home-privacy">Your files are processed in your browser. Document readers and image recognition require internet access.</p>' +
+    (recent.length ? '<div class="home-recent"><span>Recent sources</span>' + recent.map(d => '<button data-open="' + d.id + '">' + esc(d.name.length > 26 ? d.name.slice(0,26) + '...' : d.name) + ' · ' + d.analysis.patterns.length + ' patterns</button>').join('') + '</div>' : '') +
+    '<div class="learning-benefits"><div><strong>See the patterns.</strong><p>Explore diagrams and evidence drawn from your source.</p></div><div><strong>Connect the ideas.</strong><p>Follow relationships, practical analogies, and further reading.</p></div><div><strong>Make it stick.</strong><p>Practice recall and return to the concepts that need attention.</p></div></div></div></div>';
 }
 function bindHome() {
   $('#dropZone').onclick = () => $('#fileInput').click();
+  $('#dropZone').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#fileInput').click(); } };
   const ghGo = () => captureFromGitHub($('#ghInput').value);
   $('#ghBtn').onclick = ghGo;
   $('#ghInput').addEventListener('keydown', e => { if (e.key === 'Enter') ghGo(); });
