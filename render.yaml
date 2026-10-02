@@ -26,3 +26,11 @@ services:
           type: web
           name: ask-api
           envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    name: maryiam-daily-jobs
+    runtime: docker
+    plan: free
+    dockerfilePath: ./ai-engineering-maryiam-main/maryiam-daily-jobs/Dockerfile
+    dockerContext: ./ai-engineering-maryiam-main/maryiam-daily-jobs
+    healthCheckPath: /api/health

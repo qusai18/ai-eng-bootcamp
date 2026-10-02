@@ -7,6 +7,7 @@ serves a daily apply board. Does not auto-submit applications on LinkedIn/Indeed
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 import time
@@ -26,7 +27,8 @@ DAILY_FILE = DATA / "daily_batch.json"
 STRATEGY_FILE = ROOT / "strategy.json"
 
 USER_AGENT = "MaryiamDailyJobs/1.0 (+local; strategy-aligned BA search)"
-PORT = 8791
+HOST = os.environ.get("HOST", "0.0.0.0")
+PORT = int(os.environ.get("PORT", "8791"))
 
 
 def ensure_dirs() -> None:
@@ -737,8 +739,8 @@ def main() -> None:
     print(f"Building first daily batch for {strategy['candidate']['name']}...")
     # Warm cache in background so first page load is fast
     threading.Thread(target=lambda: build_daily_batch(strategy, force=False), daemon=True).start()
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
-    print(f"Maryiam Daily Jobs -> http://127.0.0.1:{PORT}/")
+    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    print(f"Maryiam Daily Jobs -> http://{HOST}:{PORT}/", flush=True)
     print("Apply opens the employer/board URL. Tracking stays local in data/applications.json")
     try:
         server.serve_forever()
