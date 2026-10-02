@@ -1,0 +1,9 @@
+services:
+  github-crew:
+    build: .
+    ports:
+      - "8080:10000"
+    env_file:
+      - ../.env
+    environment:
+      PORT: "10000"

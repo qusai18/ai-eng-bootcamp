@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitHub Crew — Agentic Assessment Unit</title>
+<style>
+  :root{
+    --navy:#0B2E59; --navy2:#08203F; --deep:#0A2444;
+    --ink:#22364C; --ink2:#5A6E86; --hair:#E2E8F0; --hair2:#EEF2F7;
+    --green:#1E9E5A; --green-d:#157A44; --blue:#1A6FC4;
+    --amber:#B96A08; --red:#C43D2E; --tint:#F4F7FA;
+    --console:#06152B; --console2:#0B2447; --console-b:#16345C;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --disp:'Archivo',sans-serif; --sans:'Source Sans 3',sans-serif;
+    --noise:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='2' seed='7' stitchTiles='stitch'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='2.4' intercept='-0.35'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:#fff;color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  ::selection{background:var(--navy);color:#fff}
+  :focus-visible{outline:2px solid var(--green);outline-offset:3px}
+  .hidden{display:none!important}
+  .mono{font-family:var(--mono)}
+  .wrap{max-width:1200px;margin:0 auto;padding:0 28px}
+  section{scroll-margin-top:88px}
+  h2.sec-t{font:800 clamp(28px,3.6vw,40px)/1.1 var(--disp);letter-spacing:-.02em;color:var(--navy)}
+  .eyebrow{display:flex;align-items:center;gap:9px;font:700 11px var(--mono);letter-spacing:.22em;color:var(--green-d);margin-bottom:14px;text-transform:uppercase}
+  .eyebrow::before{content:'';width:9px;height:9px;background:var(--green);border-radius:2px;flex:none}
+
+  /* ---------- header ---------- */
+  header.site{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--hair)}
+  .nav{display:flex;align-items:center;gap:34px;height:66px}
+  .logo{display:flex;align-items:center;gap:9px;font:900 19px var(--disp);letter-spacing:-.02em;color:var(--navy);text-decoration:none}
+  .logo i{width:11px;height:11px;background:var(--green);border-radius:2px}
+  .logo b{font-weight:900;color:var(--navy)}
+  nav.links{display:flex;gap:26px;margin-left:auto}
+  nav.links a{font:600 13.5px var(--sans);color:var(--ink);text-decoration:none;padding:4px 0;border-bottom:2px solid transparent}
+  nav.links a:hover{color:var(--navy);border-color:var(--green)}
+  .nav .cta{margin-left:6px}
+
+  /* ---------- buttons ---------- */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:999px;font:700 13px var(--disp);letter-spacing:.04em;padding:0 26px;height:46px;cursor:pointer;border:2px solid var(--navy);transition:.15s;text-decoration:none}
+  .btn.primary{background:var(--navy);color:#fff}
+  .btn.primary:hover:not(:disabled){background:var(--navy2)}
+  .btn.ghost{background:transparent;color:var(--navy)}
+  .btn.ghost:hover{background:var(--navy);color:#fff}
+  .btn.danger{background:transparent;border-color:var(--red);color:var(--red)}
+  .btn.danger:hover{background:var(--red);color:#fff}
+  .btn:disabled{opacity:.55;cursor:default}
+  .btn.sm{height:40px;padding:0 20px;font-size:12.5px}
+
+  /* ---------- hero ---------- */
+  .hero{background:linear-gradient(100deg,rgba(8,32,63,.92) 20%,rgba(10,36,68,.78)),#0A2444;color:#fff;padding:88px 0 92px}
+  .hero .eyebrow{color:#7ED9A2}
+  .hero h1{font:800 clamp(38px,5.6vw,64px)/1.05 var(--disp);letter-spacing:-.025em;max-width:15ch}
+  .hero h1 em{font-style:normal;color:#5BC98A}
+  .hero-sub{margin-top:18px;font-size:clamp(16px,1.8vw,19px);line-height:1.6;color:#C6D4E4;max-width:62ch}
+  .brief{margin-top:34px;background:#fff;border-radius:12px;padding:10px;max-width:820px;box-shadow:0 18px 50px rgba(4,16,34,.35)}
+  .briefrow{display:flex;gap:10px}
+  #repoInput{flex:1;min-width:0;border:0;background:transparent;font:500 16px/1.3 var(--mono);padding:12px 14px;color:var(--navy);outline:none;border-radius:8px}
+  #repoInput:focus{background:var(--tint)}
+  #repoInput::placeholder{color:#9AAABB}
+  .shake{animation:shake .4s}
+  @keyframes shake{20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+  .brief-err{display:flex;gap:18px;align-items:baseline;padding:8px 14px 4px;font:500 11px var(--mono);letter-spacing:.06em}
+  #inputErr{color:var(--red);font-weight:600}
+  .brief-err .dim{color:var(--ink2)}
+  .linklike{background:none;border:0;color:var(--blue);font:600 11.5px var(--mono);cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:3px}
+  .linklike:hover{color:var(--navy)}
+  .hero-small{margin-top:16px;font:500 11px var(--mono);letter-spacing:.1em;color:#9FB4CC;display:flex;flex-wrap:wrap;gap:6px 24px;align-items:baseline}
+  .hero-small .linklike{color:#7ED9A2}
+
+  /* ---------- overview ---------- */
+  .overview{padding:78px 0 30px}
+  .ov-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:60px;align-items:start}
+  .lead{font-size:clamp(18px,2vw,22px);line-height:1.65;color:var(--ink)}
+  .lead em{font-style:normal;color:var(--green-d);font-weight:700}
+  .note{background:var(--tint);border:1px solid var(--hair);border-radius:12px;padding:22px 24px}
+  .note h3{font:700 12px var(--mono);letter-spacing:.16em;color:var(--navy);margin-bottom:12px}
+  .note li{list-style:none;display:flex;gap:10px;font-size:14px;line-height:1.55;color:var(--ink2);padding:6px 0;border-top:1px solid var(--hair)}
+  .note li:first-of-type{border-top:0}
+  .note li b{color:var(--ink);font-weight:600}
+  .note li::before{content:'—';color:var(--green);font-weight:700;flex:none}
+
+  /* ---------- crew cards ---------- */
+  .crew{padding:44px 0 30px}
+  .crew-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:30px}
+  .ccard{background:#fff;border:1px solid var(--hair);border-radius:10px;padding:22px 22px 20px;transition:transform .18s,box-shadow .18s}
+  .ccard:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(11,46,89,.10)}
+  .c-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+  .c-ico{width:44px;height:44px;border-radius:9px;background:#EAF1F8;color:var(--navy);display:grid;place-items:center}
+  .c-ico svg{width:24px;height:24px}
+  .c-num{font:700 11px var(--mono);color:#B4C2D2;letter-spacing:.1em}
+  .c-label{font:700 9.5px var(--mono);letter-spacing:.2em;color:var(--green-d);text-transform:uppercase}
+  .ccard h3{font:800 18px var(--disp);color:var(--navy);margin:5px 0 7px;letter-spacing:-.01em}
+  .ccard p{font-size:14px;line-height:1.55;color:var(--ink2)}
+
+  /* ---------- console ---------- */
+  .console-sec{padding:58px 0 30px;background:var(--tint);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+  .mission{display:grid;grid-template-columns:300px 1fr;gap:26px;align-items:start;margin-top:30px}
+  .rail{position:sticky;top:88px;display:flex;flex-direction:column;gap:10px}
+  .rail-h{font:700 11px var(--mono);letter-spacing:.18em;color:var(--navy);display:flex;justify-content:space-between;align-items:baseline}
+  .rail-h span{font-weight:500;font-size:9.5px;color:var(--ink2);letter-spacing:.06em}
+  .agent{display:grid;grid-template-columns:36px 1fr auto;gap:12px;align-items:center;background:#fff;border:1px solid var(--hair);border-radius:9px;padding:11px 12px;cursor:pointer;transition:.15s}
+  .agent:hover{border-color:#C6D3E0}
+  .agent.filtered{border-color:var(--green);box-shadow:inset 3px 0 0 var(--green);background:#F3FAF5}
+  .patch{width:36px;height:36px;border-radius:8px;background:#EAF1F8;color:var(--navy);display:grid;place-items:center}
+  .patch svg{width:20px;height:20px}
+  .agent[data-state="working"] .patch{background:var(--navy);color:#7ED9A2}
+  .who b{display:block;font:700 12px var(--mono);letter-spacing:.05em;color:var(--navy)}
+  .who span{font-size:12px;color:var(--ink2)}
+  .ast{display:flex;align-items:center;gap:6px;font:600 8.5px var(--mono);letter-spacing:.08em;color:var(--ink2)}
+  .ast em{font-style:normal}
+  .dot{width:7px;height:7px;border-radius:50%;background:#CBD6E2;flex:none}
+  .agent[data-state="working"] .dot{background:var(--blue);animation:pulse 1s ease-in-out infinite}
+  .agent[data-state="done"] .dot{background:var(--green)}
+  .agent[data-state="failed"] .dot{background:var(--red)}
+  @keyframes pulse{50%{opacity:.2}}
+  .railstats{margin-top:6px;background:var(--navy);border-radius:9px;padding:6px 16px}
+  .railstats>div{display:flex;justify-content:space-between;font:500 10px var(--mono);letter-spacing:.1em;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.12);color:#A8BCD4}
+  .railstats>div:last-child{border-bottom:0}
+  .railstats b{color:#fff;font-weight:700}
+  .st-complete{color:#7ED9A2!important} .st-aborted{color:#F5B944!important} .st-failed,.st-running{color:#F08A6B!important}
+
+  /* ---------- wire ---------- */
+  .wire{background:var(--console);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 50px rgba(6,21,43,.25)}
+  .wire-h{display:flex;justify-content:space-between;gap:12px;padding:13px 18px;background:var(--console2);font:600 10px var(--mono);letter-spacing:.16em;color:#8FA6C0;border-bottom:1px solid var(--console-b)}
+  .wdot{width:8px;height:8px;border-radius:50%;background:#3A5578;display:inline-block;margin-right:9px}
+  .wdot.live{background:#5BC98A;animation:pulse 1s ease-in-out infinite}
+  #filterTag{color:#F5B944;font-weight:700}
+  .wire-body{height:470px;overflow-y:auto;padding:16px 18px 20px;font:400 12.5px/1.75 var(--mono);color:#DFE9F4;scrollbar-width:thin;scrollbar-color:#1B3A63 transparent}
+  .wire-body::-webkit-scrollbar{width:10px}
+  .wire-body::-webkit-scrollbar-thumb{background:#1B3A63;border:3px solid var(--console)}
+  .fl{display:flex;gap:11px;white-space:pre-wrap;word-break:break-word}
+  .ft{color:#54708F;flex:none}
+  .fa{color:#6FD192;font-weight:600;flex:none}
+  .fl.ok{color:#5BC98A}
+  .fl.warn{color:#F08A6B}
+  .fl.tool{color:#7E96B4}
+  .fl.sys{color:#9DB2CC;font-style:italic;justify-content:center;letter-spacing:.1em;padding:7px 0}
+  .curline{padding:2px 0}
+  .cur{display:inline-block;width:8px;height:14px;background:#F5B944;animation:blink 1s infinite}
+  @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+  .wire-body[data-f="scout"] .fl:not(.sys):not([data-a="scout"]),
+  .wire-body[data-f="cartographer"] .fl:not(.sys):not([data-a="cartographer"]),
+  .wire-body[data-f="pulse"] .fl:not(.sys):not([data-a="pulse"]),
+  .wire-body[data-f="archivist"] .fl:not(.sys):not([data-a="archivist"]),
+  .wire-body[data-f="guard"] .fl:not(.sys):not([data-a="guard"]),
+  .wire-body[data-f="warden"] .fl:not(.sys):not([data-a="warden"]){display:none}
+
+  /* ---------- dossier ---------- */
+  .report-sec{padding:70px 0 20px}
+  .dossier{border-top:4px solid var(--navy);padding-top:20px;animation:din .7s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes din{from{opacity:0;transform:translateY(18px)}}
+  .d-top{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;font:600 10px var(--mono);letter-spacing:.2em;color:var(--ink2);margin-bottom:22px}
+  .d-title{display:flex;justify-content:space-between;gap:34px;align-items:flex-start;flex-wrap:wrap}
+  .d-title h2{font:800 clamp(32px,4.6vw,52px)/1.05 var(--disp);letter-spacing:-.02em;color:var(--navy)}
+  .d-owner{font:600 12px var(--mono);color:var(--blue);margin-top:9px;letter-spacing:.04em}
+  .d-desc{font-size:16px;line-height:1.55;color:var(--ink2);margin-top:10px;max-width:56ch}
+  .d-verdict{display:flex;align-items:center;gap:26px}
+  .stamp{display:inline-block;transform:rotate(-5deg);color:var(--green-d);border:2.5px solid currentColor;border-radius:6px;padding:11px 18px 9px;font:800 21px/1 var(--disp);letter-spacing:.1em;-webkit-mask-image:var(--noise);mask-image:var(--noise);-webkit-mask-size:200px;mask-size:200px;animation:slam .55s cubic-bezier(.15,1.6,.35,1) .4s both}
+  .stamp small{display:block;font:700 8.5px var(--mono);letter-spacing:.22em;margin-top:7px}
+  .stamp.warn{color:var(--amber)} .stamp.bad{color:var(--red)}
+  @keyframes slam{0%{opacity:0;transform:rotate(-13deg) scale(2.3)}70%{opacity:1;transform:rotate(-4deg) scale(.96)}100%{opacity:1;transform:rotate(-5deg) scale(1)}}
+  .scorebox{text-align:right}
+  .bigscore{font:800 clamp(50px,6.4vw,80px)/0.95 var(--disp);letter-spacing:-.03em;color:var(--navy)}
+  .bigscore i{font:500 14px var(--mono);color:var(--ink2);font-style:normal}
+  .scorebox em{display:block;font:600 9.5px var(--mono);letter-spacing:.24em;color:var(--ink2);margin-top:8px;font-style:normal}
+  .d-meta{display:flex;flex-wrap:wrap;gap:8px 26px;background:var(--tint);border:1px solid var(--hair);border-radius:8px;padding:12px 18px;margin-top:26px;font:500 10.5px var(--mono);letter-spacing:.08em}
+  .d-meta span{color:var(--ink2)} .d-meta b{color:var(--navy);font-weight:700}
+  .d-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:0 44px}
+  .dcol:first-child{padding-right:6px}
+  .dcol:last-child{border-left:1px solid var(--hair);padding-left:40px}
+  .slab{margin:32px 0 16px;display:flex;align-items:center;gap:12px;font:700 10px var(--mono);letter-spacing:.22em;color:var(--navy)}
+  .slab::after{content:'';flex:1;border-top:1px solid var(--hair)}
+  .gauges{display:flex;flex-wrap:wrap}
+  .gauge{flex:1;min-width:96px;text-align:center;padding:4px 4px 0}
+  .gauge svg{width:100%;max-width:92px;display:block;margin:0 auto}
+  .gauge .track{fill:none;stroke:var(--hair);stroke-width:7;stroke-linecap:round}
+  .gauge .gval{fill:none;stroke:var(--green);stroke-width:7;stroke-linecap:round;transition:stroke-dashoffset 1.2s cubic-bezier(.25,.8,.25,1)}
+  .gauge b{display:block;font:700 15px var(--mono);color:var(--navy);margin-top:4px}
+  .gauge span{font:600 8px var(--mono);letter-spacing:.12em;color:var(--ink2)}
+  .rmf{border:1px solid var(--hair);border-radius:10px;overflow:hidden}
+  .rmf-row{padding:12px 15px;border-top:1px solid var(--hair);background:#fff}
+  .rmf-row:first-child{border-top:0}
+  .rmf-h{display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .rmf-h b{font:700 11.5px var(--mono);letter-spacing:.08em;color:var(--navy)}
+  .rmf-h b i{font-style:normal;color:#9AAABB;font-weight:500;margin-right:8px}
+  .rmf-ev{font-size:13px;line-height:1.5;color:var(--ink2);margin-top:5px}
+  .pill{font:700 9px var(--mono);letter-spacing:.1em;padding:4px 10px;border-radius:999px;white-space:nowrap}
+  .p-ok{background:#E3F4E9;color:var(--green-d)}
+  .p-warn{background:#FCF0DB;color:var(--amber)}
+  .p-gap{background:#F9E5E1;color:var(--red)}
+  .langbar{display:flex;height:12px;border-radius:6px;overflow:hidden;border:1px solid var(--hair)}
+  .langbar i{display:block;height:100%}
+  .lg{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:11px;font:500 10.5px var(--mono);color:var(--ink2)}
+  .lgit i{width:9px;height:9px;display:inline-block;margin-right:6px;vertical-align:-1px;border-radius:2px}
+  .lgit b{color:var(--navy)}
+  .cad{width:100%;max-width:420px;display:block}
+  .cad rect{fill:var(--navy)} .cad rect.now{fill:var(--green)}
+  .cad .axis{stroke:#C9D4E0;stroke-width:1}
+  .cad .tick{font:600 8px var(--mono);fill:var(--ink2);letter-spacing:.12em}
+  .cad .nowt{fill:var(--green-d)}
+  .cap{font:500 10px var(--mono);letter-spacing:.08em;color:var(--ink2);margin-top:8px}
+  .sig{display:grid;grid-template-columns:28px 92px 1fr;gap:12px;padding:11px 0;border-bottom:1px solid var(--hair2);align-items:start}
+  .sig .sp{width:28px;height:28px;border-radius:7px;background:#EAF1F8;color:var(--navy);display:grid;place-items:center}
+  .sig .sp svg{width:15px;height:15px}
+  .sig b{font:700 10px var(--mono);letter-spacing:.1em;color:var(--green-d);padding-top:2px}
+  .sig p{font-size:14px;line-height:1.5}
+  .contrib{display:grid;grid-template-columns:18px 1fr 90px 48px;gap:11px;align-items:center;padding:9px 0;border-bottom:1px solid var(--hair2)}
+  .crank{font:500 10px var(--mono);color:var(--ink2)}
+  .cname{font:600 11.5px var(--mono);color:var(--navy);overflow:hidden;text-overflow:ellipsis}
+  .cbar{height:3px;background:var(--hair);border-radius:2px;position:relative}
+  .cbar i{position:absolute;left:0;top:0;bottom:0;background:var(--navy);border-radius:2px}
+  .contrib b{font:700 11px var(--mono);color:var(--navy);text-align:right}
+  .ai{border:1px solid var(--hair);border-radius:10px;padding:18px}
+  .ai-badge{display:inline-flex;align-items:center;gap:8px;font:800 13px var(--disp);letter-spacing:.05em;padding:8px 16px;border-radius:999px}
+  .ai-badge::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor}
+  .ai-badge.ok{background:#E3F4E9;color:var(--green-d)}
+  .ai-badge.warn{background:#FCF0DB;color:var(--amber)}
+  .ai-badge.bad{background:#F9E5E1;color:var(--red)}
+  .ai-note{margin-top:12px;font-size:14px;line-height:1.55;color:var(--ink2)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .chip{font:500 10px var(--mono);background:var(--tint);border:1px solid var(--hair);padding:4px 10px;border-radius:999px;color:var(--ink2)}
+  .ai-arts{margin-top:13px;font:600 10.5px var(--mono);letter-spacing:.08em;color:var(--navy)}
+  .ai-disc{margin-top:9px;font:500 9.5px var(--mono);color:#9AAABB;line-height:1.6}
+  .rec{display:grid;grid-template-columns:30px 1fr;gap:12px;padding:11px 0;border-bottom:1px solid var(--hair2)}
+  .rec b{width:30px;height:30px;border-radius:8px;background:var(--navy);color:#fff;display:grid;place-items:center;font:700 12px var(--mono)}
+  .rec p{font-size:14.5px;line-height:1.55;padding-top:3px}
+  .none{font-size:14px;color:var(--ink2)}
+  .d-foot{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;border-top:1px solid var(--hair);margin-top:38px;padding-top:18px;font:500 10px var(--mono);letter-spacing:.12em;color:var(--ink2)}
+
+  /* ---------- footer ---------- */
+  footer.site{background:var(--navy2);color:#B9C9DB;margin-top:60px;padding:56px 0 0}
+  .f-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:44px}
+  .f-logo{display:flex;align-items:center;gap:9px;font:900 19px var(--disp);color:#fff;letter-spacing:-.02em;margin-bottom:14px}
+  .f-logo i{width:11px;height:11px;background:var(--green);border-radius:2px}
+  .f-grid p{font-size:13.5px;line-height:1.65;max-width:44ch}
+  .f-grid h4{font:700 10px var(--mono);letter-spacing:.22em;color:#7E96B4;margin-bottom:14px}
+  .f-grid ul{list-style:none}
+  .f-grid li a{display:block;font:600 13.5px var(--sans);color:#D5E0EC;text-decoration:none;padding:5px 0}
+  .f-grid li a:hover{color:#7ED9A2}
+  .f-grid li span{display:block;font:600 13.5px var(--sans);color:#D5E0EC;padding:5px 0}
+  .f-bar{border-top:1px solid rgba(255,255,255,.12);margin-top:44px;padding:18px 0 26px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;font:500 10px var(--mono);letter-spacing:.14em;color:#7E96B4}
+
+  @media(max-width:980px){
+    nav.links{display:none}
+    .ov-grid,.crew-grid{grid-template-columns:1fr}
+    .crew-grid{grid-template-columns:repeat(2,1fr)}
+    .mission{grid-template-columns:1fr}
+    .rail{position:static}
+    .d-grid{grid-template-columns:1fr}
+    .dcol:first-child{padding-right:0}
+    .dcol:last-child{border-left:0;padding-left:0;border-top:1px solid var(--hair);margin-top:26px;padding-top:8px}
+    .d-verdict{width:100%;justify-content:space-between}
+    .f-grid{grid-template-columns:1fr;gap:30px}
+    .briefrow{flex-wrap:wrap}
+    .briefrow .btn{flex:1}
+    .wire-body{height:380px}
+  }
+  @media(max-width:560px){.crew-grid{grid-template-columns:1fr}}
+
+.demo-notice{padding:14px 18px;background:#fcf0db;color:#805005;border-radius:8px;margin-bottom:24px;font:600 12px var(--mono)}
+.brief-err{flex-wrap:wrap}.hero{background:radial-gradient(ellipse at 90% 20%,#17655255,transparent 55%),linear-gradient(120deg,#08203f,#0b2e59)}
+@media(max-width:600px){.briefrow{flex-wrap:wrap}#repoInput{flex-basis:100%}.wire-h{flex-wrap:wrap}.fl{gap:6px}.ft{display:none}.wrap{padding:0 18px}}
+@media print{header.site,.hero,.overview,.crew,.console-sec,footer.site,.d-foot button{display:none!important}.report-sec{padding:0}.dossier{animation:none}.stamp{animation:none;mask-image:none}.d-grid{display:block}.dcol:last-child{border:0;padding:0}.slab{break-after:avoid}.rmf-row,.sig,.rec{break-inside:avoid}.gval{transition:none}}
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap nav">
+    <a class="logo" href="#overview"><i></i>GITHUB<b>CREW</b></a>
+    <nav class="links">
+      <a href="#overview">Overview</a>
+      <a href="#crew">The Crew</a>
+      <a href="#console">Mission Console</a>
+      <a href="#report">Assessment Report</a>
+    </nav>
+    <button class="btn primary sm cta" id="navDeploy" type="button">Deploy a crew</button>
+  </div>
+</header>
+
+<section class="hero" id="home">
+  <div class="wrap">
+    <p class="eyebrow">Agentic assessment · live GitHub recon</p>
+    <h1>Repository due diligence, <em>run by a crew of six.</em></h1>
+    <p class="hero-sub">Deploy a team of specialist agents that verify, map, measure, audit, screen and sign — pulling live evidence from the public GitHub API and returning a signed assessment dossier. Everything runs in your browser.</p>
+    <form id="briefForm" autocomplete="off">
+      <div class="brief">
+        <div class="briefrow">
+          <input id="repoInput" type="text" placeholder="owner/repo or https://github.com/owner/repo" spellcheck="false" aria-label="GitHub repository">
+          <button id="deployBtn" type="submit" class="btn primary">Deploy Crew</button>
+          <button id="abortBtn" type="button" class="btn danger hidden">Abort</button>
+        </div>
+        <div class="brief-err">
+          <span id="inputErr" role="alert" class="hidden"></span>
+          <span class="dim">ACCEPTS owner/repo OR A FULL GITHUB URL</span>
+          <button type="button" id="demoBtn" class="linklike">Try offline demo</button>
+          <button type="button" id="exampleBtn" class="linklike">run field test → sindresorhus/is</button>
+        </div>
+      </div>
+    </form>
+    <div class="hero-small">
+      <span>NO KEYS · NO ACCOUNTS · NOTHING UPLOADED</span>
+      <span>UNAUTHENTICATED QUOTA 60 REQ/HR — ONE MISSION ≈ 10 CALLS</span>
+      <span>FRAMEWORKS: NIST RMF · EU AI ACT</span>
+    </div>
+  </div>
+</section>
+
+<section class="overview" id="overview">
+  <div class="wrap ov-grid">
+    <div>
+      <p class="eyebrow">How an assessment runs</p>
+      <h2 class="sec-t">Six specialists. One orchestration. One clear assessment.</h2>
+      <p class="lead" style="margin-top:18px">Scout verifies the target, Cartographer maps its structure, Pulse reads its heartbeat, Archivist audits its paperwork, <em>Guard screens security controls and compliance exposure</em>, and Warden weighs every finding before signing the dossier. Each agent logs its work to the live console as it happens.</p>
+    </div>
+    <div class="note">
+      <h3>OPERATING NOTES</h3><p style="font-size:14px;line-height:1.5;margin-bottom:12px">Six rule-based analyzers inspect public metadata. Framework indicators are preliminary signals, not a security audit or legal compliance determination.</p>
+      <ul>
+        <li><span><b>Fully local.</b> Analysis, scoring and rendering happen in your browser — only the GitHub REST API is contacted.</span></li>
+        <li><span><b>Click an agent</b> in the roster to filter the console to that specialist's transmissions.</span></li>
+        <li><span><b>Abort anytime.</b> In-flight requests are cancelled immediately; partial results are discarded.</span></li>
+        <li><span><b>Re-runs are free.</b> Results are cached per session so repeat missions don't burn quota.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="crew" id="crew">
+  <div class="wrap">
+    <p class="eyebrow">The roster · 06 specialists</p>
+    <h2 class="sec-t">A crew built for the job</h2>
+    <div class="crew-grid" id="manifest"></div>
+  </div>
+</section>
+
+<section class="console-sec" id="console">
+  <div class="wrap">
+    <p class="eyebrow">Mission console</p>
+    <h2 class="sec-t">Watch the crew work</h2>
+    <div class="mission">
+      <aside class="rail">
+        <div class="rail-h">CREW ROSTER · 06 <span>click to filter</span></div>
+        <div id="roster" style="display:flex;flex-direction:column;gap:10px"></div>
+        <div class="railstats">
+          <div><span>STATUS</span><b id="stStatus">STANDBY</b></div>
+          <div><span>ELAPSED</span><b id="stElapsed">00:00.0</b></div>
+          <div><span>API CALLS</span><b id="stCalls">0</b></div>
+          <div><span>QUOTA</span><b id="stQuota">—/60</b></div>
+        </div>
+      </aside>
+      <div class="wire">
+        <div class="wire-h">
+          <span><i class="wdot" id="wireDot"></i>ORCHESTRATION FEED — LIVE</span>
+          <span>FILTER: <b id="filterTag">—</b></span>
+        </div>
+        <div class="wire-body" id="feed"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="report-sec" id="report">
+  <div class="wrap" id="dossierHost"></div>
+</section>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="f-grid">
+      <div>
+        <div class="f-logo"><i></i>GITHUB<b>CREW</b></div>
+        <p>An independent field exercise in agentic architecture: six specialists assess any public GitHub repository, right in your browser. Visual language in the style of modern consulting sites; not affiliated with or endorsed by ICF International.</p>
+      </div>
+      <div>
+        <h4>METHOD</h4>
+        <ul>
+          <li><a href="#overview">Overview</a></li>
+          <li><a href="#crew">The Crew</a></li>
+          <li><a href="#console">Mission Console</a></li>
+          <li><a href="#report">Assessment Report</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>FRAMEWORKS & DATA</h4>
+        <ul>
+          <li><a href="https://www.nist.gov/itl/ssd/cs/risk-management-framework" target="_blank" rel="noopener">NIST Risk Management Framework ↗</a></li>
+          <li><a href="https://artificialintelligenceact.eu/" target="_blank" rel="noopener">EU AI Act Explorer ↗</a></li>
+          <li><a href="https://docs.github.com/rest" target="_blank" rel="noopener">GitHub REST API docs ↗</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="f-bar">
+      <span>GITHUB CREW · SIX SPECIALISTS, ONE REPOSITORY, ZERO KEYS</span>
+      <span>DATA: API.GITHUB.COM · ALL ANALYSIS COMPUTED LOCALLY · NO TELEMETRY</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(() => {
+'use strict';
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = s => document.querySelector(s);
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const trunc = (s,n) => s.length > n ? s.slice(0, n-1).trimEnd() + '…' : s;
+const fmtN = n => { n = Number(n)||0; return n >= 1000 ? (n/1000).toFixed(1).replace(/\.0$/,'')+'k' : String(n); };
+const fmtDate = iso => new Date(iso).toISOString().slice(0,10);
+const daysSince = iso => (Date.now() - +new Date(iso)) / 864e5;
+function rel(x){
+  const t = typeof x === 'number' ? x : +new Date(x);
+  const s = (Date.now() - t) / 1000;
+  if (s < 0) return 'just now';
+  if (s < 3600) return Math.max(1, Math.round(s/60)) + 'm ago';
+  if (s < 86400) return Math.round(s/3600) + 'h ago';
+  const d = s / 86400;
+  if (d < 60) return Math.round(d) + 'd ago';
+  if (d < 730) return Math.round(d/30) + 'mo ago';
+  return Math.round(d/365) + 'y ago';
+}
+const median = a => { if (!a.length) return 0; const s=[...a].sort((x,y)=>x-y); const m=s.length>>1; return s.length%2 ? s[m] : Math.round((s[m-1]+s[m])/2); };
+
+/* ---------- crew ---------- */
+const PATCH = {
+  scout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="7"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>`,
+  cartographer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3h18v18H3z"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18" opacity=".4"/><path d="M5 19l6-6 3 2 5-8" stroke-width="1.8"/><circle cx="5" cy="19" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="7" r="1.4" fill="currentColor" stroke="none"/></svg>`,
+  pulse: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12h4l3-8 5 16 3-8h7"/></svg>`,
+  archivist: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/><path d="M9 12h8M9 16h8M9 8h3"/></svg>`,
+  guard: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2l8 3v6c0 5-3.5 9.3-8 11-4.5-1.7-8-6-8-11V5z"/><path d="M5.5 10.5h13" stroke-width="1.2" opacity=".55"/><circle cx="9" cy="10.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="10.5" r="1.3" fill="currentColor" stroke="none"/></svg>`,
+  warden: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2l8 3v6c0 5-3.5 9.3-8 11-4.5-1.7-8-6-8-11V5z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>`
+};
+const AGENTS = [
+  {id:'scout',       name:'SCOUT',       role:'Reconnaissance',        line:'Verifies the target and pulls its vitals — stars, forks, license, age.'},
+  {id:'cartographer',name:'CARTOGRAPHER',role:'Structural survey',     line:'Maps languages, root artifacts, CI pipelines and test suites.'},
+  {id:'pulse',       name:'PULSE',       role:'Activity & cadence',    line:'Reads the last hundred commits and finds the heartbeat.'},
+  {id:'archivist',   name:'ARCHIVIST',   role:'Documentation audit',   line:'Grades the README and the auxiliary paperwork.'},
+  {id:'guard',       name:'GUARD',       role:'Security & compliance', line:'Maps security controls against NIST RMF and screens for EU AI Act exposure.'},
+  {id:'warden',      name:'WARDEN',      role:'Synthesis & verdict',   line:'Weighs every finding, then signs the dossier.'},
+];
+const AGMAP = Object.fromEntries(AGENTS.map(a => [a.id, a]));
+
+/* ---------- dom ---------- */
+const feedEl=$('#feed'), rosterEl=$('#roster'), manifestEl=$('#manifest'),
+      mission=$('#console'), dossierHost=$('#dossierHost'),
+      repoInput=$('#repoInput'), deployBtn=$('#deployBtn'), abortBtn=$('#abortBtn'),
+      inputErr=$('#inputErr'), stStatus=$('#stStatus'), stElapsed=$('#stElapsed'),
+      stCalls=$('#stCalls'), stQuota=$('#stQuota'), wireDot=$('#wireDot'), filterTag=$('#filterTag');
+
+const curEl = document.createElement('div');
+curEl.className = 'fl curline'; curEl.innerHTML = '<span class="cur"></span>';
+feedEl.appendChild(curEl);
+const scrollFeed = () => { feedEl.scrollTop = feedEl.scrollHeight; };
+
+/* ---------- roster & manifest ---------- */
+rosterEl.innerHTML = AGENTS.map(a => `
+  <div class="agent" role="button" tabindex="0" aria-pressed="false" data-agent="${a.id}" data-state="standby" title="Filter the console to ${a.name}">
+    <div class="patch">${PATCH[a.id]}</div>
+    <div class="who"><b>${a.name}</b><span>${a.role}</span></div>
+    <div class="ast"><i class="dot"></i><em>STANDBY</em></div>
+  </div>`).join('');
+manifestEl.innerHTML = AGENTS.map((a,i) => `
+  <div class="ccard">
+    <div class="c-top"><div class="c-ico">${PATCH[a.id]}</div><span class="c-num">${String(i+1).padStart(2,'0')}</span></div>
+    <span class="c-label">Phase ${String(i+1).padStart(2,'0')} · ${a.role}</span>
+    <h3>${a.name.charAt(0)}${a.name.slice(1).toLowerCase()}</h3>
+    <p>${a.line}</p>
+  </div>`).join('');
+const calls = Object.fromEntries(AGENTS.map(a => [a.id, 0]));
+
+function setAgent(id, st, label){
+  const row = rosterEl.querySelector(`[data-agent="${id}"]`);
+  row.dataset.state = st;
+  row.querySelector('em').textContent = label || {standby:'STANDBY',working:'WORKING',done:'DONE',failed:'FAILED'}[st];
+}
+function bump(id){
+  const row = rosterEl.querySelector(`[data-agent="${id}"]`);
+  if (row && row.dataset.state === 'working') row.querySelector('em').textContent = `WORKING · ${calls[id]}`;
+}
+
+/* ---------- wire engine ---------- */
+const q = [];
+let printing = false;
+const clockStr = () => new Date().toTimeString().slice(0,8);
+function say(agent, text, kind='say', gap){ q.push({agent, text, kind, gap}); pump(); }
+function sys(text, gap=140){ q.push({text, kind:'sys', gap}); pump(); }
+async function pump(){
+  if (printing) return; printing = true;
+  while (q.length){
+    if (state.aborted){ q.length = 0; await typeLine({text:'— MISSION ABORTED BY OPERATOR —', kind:'sys'}); break; }
+    const it = q.shift();
+    await typeLine(it);
+    await wait(0);
+  }
+  printing = false;
+}
+function typeLine(it){
+  return new Promise(done => {
+    const el = document.createElement('div');
+    el.className = 'fl ' + it.kind;
+    if (it.agent) el.dataset.a = it.agent;
+    let inner = '';
+    if (it.kind !== 'sys') inner += `<span class="ft">${clockStr()}</span>`;
+    if (it.agent) inner += `<span class="fa">[${AGMAP[it.agent].name}]</span>`;
+    inner += '<span class="fx"></span>';
+    el.innerHTML = inner;
+    feedEl.insertBefore(el, curEl);
+    const fx = el.querySelector('.fx'), txt = it.text;
+    const fast = true;
+    if (fast){ fx.textContent = txt; scrollFeed(); done(); return; }
+    let i = 0;
+    (function tick(){
+      if (state.aborted){ fx.textContent = txt; scrollFeed(); done(); return; }
+      i += 1 + (Math.random() < .35 ? 1 : 0);
+      fx.textContent = txt.slice(0, i);
+      scrollFeed();
+      if (i < txt.length) setTimeout(tick, 6 + Math.random()*8);
+      else done();
+    })();
+  });
+}
+
+/* ---------- github api ---------- */
+class GHError extends Error { constructor(kind){ super(kind); this.kind = kind; } }
+const state = { running:false, aborted:false, cur:null, controller:null, t0:0, timer:null };
+let callCount = 0;
+const cache = new Map();
+
+async function gh(path, opt = {}){
+  const { soft=false, raw=false, empty409=false } = opt;
+  const agent = state.cur;
+  const t0 = performance.now(); let res;
+  try {
+    res = await fetch('https://api.github.com' + path, {
+      signal: state.controller.signal,
+      headers: raw ? {'Accept':'application/vnd.github.raw'} : {'Accept':'application/vnd.github+json'}
+    });
+  } catch(e){
+    if (state.aborted) throw new GHError('abort');
+    throw new GHError('net');
+  }
+  const ms = Math.round(performance.now() - t0);
+  callCount++; stCalls.textContent = callCount;
+  if (agent){ calls[agent]++; bump(agent); }
+  say(agent, `⇄ GET ${path} → ${res.status} · ${ms} ms`, (res.ok || soft) ? 'tool' : 'warn');
+  if (res.status === 409 && empty409) return [];
+  if (soft && res.status === 404) return null;
+  if (res.status === 429 || (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0')) throw new GHError('limit');
+  if (res.status === 404) throw new GHError('notfound');
+  if (!res.ok) throw new GHError('http');
+  if (res.status === 204) return [];
+  return raw ? res.text() : res.json();
+}
+
+/* ---------- input ---------- */
+function parseRepo(raw){
+  let s = (raw || '').trim();
+  if (/^https?:\/\//i.test(s)) {
+    try { const u = new URL(s); if (u.hostname !== 'github.com' && u.hostname !== 'www.github.com') return null; s = u.pathname; } catch { return null; }
+  } else s = s.replace(/^(www\.)?github\.com\//i,'');
+  s = s.replace(/^\/|\/$/g,'').replace(/\.git$/i,'');
+  const m = s.match(/^([a-z0-9](?:[a-z0-9-]{0,38}))\/([a-z0-9_.-]+)$/i);
+  return m && !['.','..'].includes(m[2]) ? m[1]+'/'+m[2] : null;
+}
+
+/* ---------- agents ---------- */
+const STACKMAP = [
+  ['package.json','Node.js'],['deno.json','Deno'],['bun.lockb','Bun'],
+  ['requirements.txt','Python'],['pyproject.toml','Python'],['Pipfile','Python'],['setup.py','Python'],
+  ['go.mod','Go'],['Cargo.toml','Rust'],['pom.xml','Java (Maven)'],['build.gradle','Java (Gradle)'],
+  ['composer.json','PHP'],['Gemfile','Ruby'],['*.csproj','.NET'],['mix.exs','Elixir'],
+  ['Dockerfile','Docker'],['docker-compose.yml','Docker Compose'],['Makefile','Make'],['CMakeLists.txt','CMake'],
+  ['pubspec.yaml','Flutter/Dart'],['Package.swift','Swift'],['flake.nix','Nix']
+];
+const matchPat = (name, pat) => pat.startsWith('*.')
+  ? name.toLowerCase().endsWith(pat.slice(1).toLowerCase())
+  : name.toLowerCase() === pat.toLowerCase();
+const KNOWN = new Set(['feat','fix','chore','docs','refactor','test','ci','perf','build','style','revert','merge']);
+const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+async function agentScout(P, fresh){
+  state.cur = 'scout'; setAgent('scout','working'); const A = 'scout';
+  say(A, `Target locked — running reconnaissance on ${P.repo}…`);
+  if (fresh){
+    const rl = await gh('/rate_limit');
+    P.quota = rl.resources.core.remaining; P.quotaMax = rl.resources.core.limit;
+    stQuota.textContent = `${P.quota}/${P.quotaMax}`;
+    say(A, `API quota healthy — ${P.quota} of ${P.quotaMax} calls remaining this hour.`, 'ok');
+    if (P.quota < 12) throw new GHError('quota');
+    P.meta = await gh(`/repos/${P.repo}`);
+  } else {
+    say(A, 'Replaying recorded intelligence from this session\u2019s cache.', 'tool');
+  }
+  const m = P.meta;
+  say(A, `Target acquired — \u201C${m.name}\u201D by ${m.owner.login}.`, 'ok');
+  say(A, `▸ ${fmtN(m.stargazers_count)} stars · ${fmtN(m.forks_count)} forks · ${fmtN(m.open_issues_count)} open issues & pulls`);
+  say(A, `▸ created ${fmtDate(m.created_at)} (${rel(m.created_at)} old) · last push ${rel(m.pushed_at)}`);
+  say(A, `▸ declared language: ${m.language || 'none'} · license: ${m.license ? m.license.spdx_id : 'none detected'} · branch: ${m.default_branch}`);
+  if (m.description) say(A, `▸ field notes: \u201C${trunc(m.description, 110)}\u201D`);
+  say(A, 'Reconnaissance complete. Handing off to CARTOGRAPHER.');
+  setAgent('scout','done');
+}
+
+async function agentCartographer(P, fresh){
+  state.cur = 'cartographer'; setAgent('cartographer','working'); const A = 'cartographer';
+  say(A, `Surveying the structure of ${P.repo}…`);
+  if (fresh){
+    P.langs = await gh(`/repos/${P.repo}/languages`);
+    P.root  = (await gh(`/repos/${P.repo}/contents`, {empty409:true, soft:true})) || [];
+    const wf = await gh(`/repos/${P.repo}/contents/.github/workflows`, {soft:true});
+    P.wf = wf ? wf.filter(f => /\.ya?ml$/i.test(f.name)).map(f => f.name) : [];
+  }
+  const langs = P.langList = Object.entries(P.langs || {}).sort((a,b) => b[1]-a[1]);
+  const total = langs.reduce((s,[,b]) => s+b, 0);
+  if (langs.length)
+    say(A, '▸ byte census: ' + langs.slice(0,4).map(([n,b]) => `${n} ${(b/total*100).toFixed(1)}%`).join(' · ') + (langs.length > 4 ? ' · …' : ''));
+  else
+    say(A, '▸ byte census: no language data — the repository tree is empty.', 'warn');
+  const entries = P.root || [];
+  say(A, `▸ root census: ${entries.filter(e=>e.type==='file').length} files · ${entries.filter(e=>e.type==='dir').length} directories at the surface`);
+  const found = [];
+  for (const [pat,label] of STACKMAP){
+    const hit = entries.find(e => matchPat(e.name, pat));
+    if (hit) found.push([hit.name, label]);
+  }
+  P.docker = found.some(f => /docker/i.test(f[1]) && f[0].toLowerCase().startsWith('dockerfile'));
+  P.compose = entries.some(e => /^docker-compose\.yml$/i.test(e.name));
+  found.slice(0,5).forEach(([n,l]) => say(A, `artifact identified: ${n} — ${l} detected`, 'ok'));
+  if (found.length > 5) say(A, `▸ …and ${found.length - 5} further artifacts logged`);
+  P.ci = (P.wf || []).length > 0;
+  if (P.ci) say(A, `CI pipeline live — ${P.wf.length} workflow${P.wf.length>1?'s':''}: ${P.wf.slice(0,3).join(', ')}${P.wf.length>3?'…':''}`, 'ok');
+  else say(A, 'no CI workflows found under .github/workflows', 'warn');
+  const testDir = /^(tests?|specs?|__tests__|e2e|unit)$/i;
+  const testFile = /^(jest|vitest|karma|pytest|tox|cypress|playwright|noxfile)|\.(test|spec)\./i;
+  const testHit = entries.find(e => e.type === 'dir' ? testDir.test(e.name) : testFile.test(e.name));
+  P.tests = !!testHit;
+  if (P.tests) say(A, `test suite detected: ${testHit.name}`, 'ok');
+  else say(A, 'no test suite detected at the surface', 'warn');
+  say(A, `Stack manifest compiled — ${langs.slice(0,3).map(l=>l[0]).join(' / ') || 'unknown'}. Handing off to PULSE.`);
+  setAgent('cartographer','done');
+}
+
+async function agentPulse(P, fresh){
+  state.cur = 'pulse'; setAgent('pulse','working'); const A = 'pulse';
+  say(A, `Listening for ${P.repo}'s heartbeat…`);
+  if (fresh){
+    P.commits = await gh(`/repos/${P.repo}/commits?per_page=100&sha=${encodeURIComponent(P.meta.default_branch)}`, {empty409:true});
+    P.contribs = await gh(`/repos/${P.repo}/contributors?per_page=100`);
+  }
+  const cs = P.commits || [];
+  P.sampled = cs.length;
+  if (!cs.length){
+    say(A, 'no commits found — the repository has no heartbeat yet.', 'warn');
+    setAgent('pulse','done');
+    return;
+  }
+  const times = cs.map(c => +new Date(c.commit.author.date)).sort((a,b) => a-b);
+  const newest = times[times.length-1];
+  const spanDays = Math.max(1, (newest - times[0]) / 864e5);
+  P.perWeek = cs.length / (spanDays / 7);
+  const wd = new Array(7).fill(0), tax = {}, lens = [];
+  cs.forEach(c => {
+    const d = new Date(c.commit.author.date);
+    wd[d.getUTCDay()]++; lens.push(c.commit.message.length);
+    const mm = c.commit.message.match(/^(\w+)(?:\(|:)/);
+    if (mm && KNOWN.has(mm[1].toLowerCase())) tax[mm[1].toLowerCase()] = (tax[mm[1].toLowerCase()]||0) + 1;
+  });
+  const wdMax = wd.indexOf(Math.max(...wd));
+  P.busiest = { day: DAYS[wdMax], n: wd[wdMax], pct: Math.round(wd[wdMax]/cs.length*100) };
+  P.tax = tax; P.medianLen = median(lens);
+  const longest = cs.reduce((a,c) => c.commit.message.length > a.commit.message.length ? c : a, cs[0]);
+  P.longest = { msg: trunc(longest.commit.message.replace(/\s+/g,' '), 46), by: (longest.author && longest.author.login) || longest.commit.author.name };
+  const now = Date.now();
+  P.buckets = new Array(12).fill(0);
+  cs.forEach(c => { const w = Math.floor((now - +new Date(c.commit.author.date)) / 6048e5); if (w >= 0 && w < 12) P.buckets[11-w]++; });
+  say(A, `▸ sampled last ${cs.length} commits on \u201C${P.meta.default_branch}\u201D — latest ${rel(newest)}`);
+  say(A, `▸ cadence ≈ ${P.perWeek.toFixed(1)} commits/week across the sample window`);
+  say(A, `▸ busiest day: ${P.busiest.day} — ${P.busiest.n} commits (${P.busiest.pct}% of sample)`);
+  const tk = Object.entries(P.tax).sort((a,b) => b[1]-a[1]);
+  if (tk.length)
+    say(A, '▸ commit taxonomy: ' + tk.slice(0,4).map(([k,v]) => `${k} ${v}`).join(' · ') + ` · other ${cs.length - tk.reduce((s,[,v]) => s+v, 0)}`);
+  else
+    say(A, '▸ commit taxonomy: conventional prefixes not detected');
+  say(A, `▸ median message ${P.medianLen} chars · longest: \u201C${P.longest.msg}\u201D — ${P.longest.by}`);
+  const ct = P.contribs || [];
+  P.contribTotal = ct.length; P.top = ct.slice(0,5);
+  if (ct.length)
+    say(A, `▸ ${ct.length}${ct.length === 100 ? '+' : ''} contributors on record — heaviest lifters: ${ct.slice(0,3).map(c => c.login).join(', ')}`);
+  P.strength = P.perWeek >= 10 ? 'STRONG' : P.perWeek >= 3 ? 'STEADY' : P.perWeek >= 1 ? 'SLOW' : 'FAINT';
+  say(A, `Heartbeat reads ${P.strength}. Handing off to ARCHIVIST.`);
+  setAgent('pulse','done');
+}
+
+async function agentArchivist(P, fresh){
+  state.cur = 'archivist'; setAgent('archivist','working'); const A = 'archivist';
+  say(A, 'Auditing the paperwork…');
+  const rootNames = (P.root || []).map(e => e.name.toLowerCase());
+  const has = pre => rootNames.some(n => n.startsWith(pre));
+  P.aux = { license: has('license'), contributing: has('contributing'), coc: has('code_of_conduct'), security: has('security') };
+  if (fresh) P.readme = await gh(`/repos/${P.repo}/readme`, {soft:true, raw:true});
+  if (!P.readme){
+    say(A, 'no README found at the repository root — the dossier has no cover page.', 'warn');
+    P.docScore = 0; P.docGaps = ['everything']; P.docChecks = []; P.docCovered = [];
+    say(A, 'Documentation audit closed. Handing off to GUARD.');
+    setAgent('archivist','done');
+    return;
+  }
+  const t = P.readme, tl = t.toLowerCase();
+  const kb = (t.length/1024).toFixed(1);
+  const words = t.split(/\s+/).filter(Boolean).length;
+  const heads = (t.match(/^#{1,6}\s.*$/gm) || []).length;
+  P.readmeStats = { kb, words, heads };
+  const CH = [
+    ['Installation',14, /#{1,6}[^\n]*(install|set ?up|setup)|getting ?started/i],
+    ['Usage',14, /#{1,6}[^\n]*(usage|quick ?start|getting ?started)|##\s*use/i],
+    ['Contributing',10, /contribut/],
+    ['License',10, /#{1,6}[^\n]*licen[cs]e|licen[cs]e$/im],
+    ['Tests',8, /#{1,6}[^\n]*test|running tests/i],
+    ['Examples',8, /#{1,6}[^\n]*(example|demo|screenshot)/i],
+    ['Badges',6, /shields\.io|badge/i],
+    ['Table of contents',5, /table of contents|^- \[[^\]]+\]\(#/im],
+    ['Docs links',5, /documentation|docs\/|readthedocs/i],
+  ];
+  P.docChecks = []; let score = 20;
+  CH.forEach(([label,w,re]) => { const ok = re.test(tl); P.docChecks.push([label, ok]); if (ok) score += w; });
+  P.docScore = Math.min(100, score);
+  P.docCovered = P.docChecks.filter(c => c[1]).map(c => c[0]);
+  P.docGaps = P.docChecks.filter(c => !c[1]).map(c => c[0]);
+  say(A, `▸ README: ${kb} KB · ${fmtN(words)} words · ${heads} section headings`);
+  if (P.docCovered.length) say(A, `sections verified: ${P.docCovered.join(' · ')}`, 'ok');
+  if (P.docGaps.length) say(A, `sections missing: ${P.docGaps.join(' · ')}`, 'warn');
+  const au = P.aux;
+  say(A, `▸ auxiliary docs: LICENSE ${au.license?'✓':'✗'} · CONTRIBUTING ${au.contributing?'✓':'✗'} · CODE_OF_CONDUCT ${au.coc?'✓':'✗'} · SECURITY ${au.security?'✓':'✗'}`);
+  say(A, `Documentation audit closed at ${P.docScore}/100. Handing off to GUARD.`);
+  setAgent('archivist','done');
+}
+
+/* ---------- GUARD: NIST RMF × EU AI Act ---------- */
+const SEC_WF = /codeql|security|scan|snyk|trivy|semgrep|bandit|audit|anchore|grype|zap/i;
+const SENSITIVE = ['password','secret','credential','token','authentication','oauth','encryption','cryptography','personal data','pii','privacy','health','medical','payment','financial','biometric'];
+const AI_SIGNALS = ['machine learning','deep learning','neural network','artificial intelligence',' llm','language model','large language',' gpt','transformer','diffusion model','inference','training data','computer vision','natural language','chatbot','conversational ai','ai agent','agent framework','autonomous agent','reinforcement learning','embedding','text generation','image generation','speech recognition'];
+const AI_PROHIBITED = ['social scoring','emotion recognition','biometric categorisation','biometric categorization','real-time biometric','remote biometric identification'];
+const AI_HIGH = ['biometric','facial recognition','emotion','credit scoring','creditworthiness','recruitment','hiring','applicant','resume screening','cv screening','loan approval','insurance pricing','proctoring','medical diagnosis','diagnostic','patient triage','critical infrastructure','law enforcement','border control','migration','asylum','essential services'];
+
+async function agentGuard(P, fresh){
+  state.cur = 'guard'; setAgent('guard','working'); const A = 'guard';
+  say(A, 'Running security & compliance mapping — NIST RMF × EU AI Act…');
+  if (fresh){
+    P.ghDot = (await gh(`/repos/${P.repo}/contents/.github`, {soft:true})) || [];
+    const lr = await gh(`/repos/${P.repo}/releases/latest`, {soft:true});
+    P.release = lr ? {tag: lr.tag_name || lr.name, at: lr.published_at} : null;
+  }
+  const rootN = (P.root || []).map(e => e.name.toLowerCase());
+  const dotN  = (P.ghDot || []).map(e => e.name.toLowerCase());
+  const has = (list, pre) => list.some(n => n.startsWith(pre));
+  const secMd   = has(rootN,'security') || has(dotN,'security');
+  const depbot  = dotN.includes('dependabot.yml') || dotN.includes('dependabot.yaml');
+  const codeown = has(rootN,'codeown') || has(dotN,'codeown');
+  const wf = P.wf || [];
+  const secWf = wf.filter(n => SEC_WF.test(n));
+  P.secCtl = {secMd, depbot, codeown, secWf};
+
+  /* sensitive-data indicators (for CATEGORIZE) */
+  const m = P.meta;
+  const scanText = [m.description, (m.topics || []).join(' '), P.readme ? P.readme.slice(0, 6000) : ''].join('\n').toLowerCase();
+  const sensRaw = SENSITIVE.filter(k => scanText.includes(k));
+  const sens = sensRaw.filter(k => !sensRaw.some(o => o !== k && o.includes(k)));
+  P.secSens = sens;
+
+  /* ---- NIST RMF step mapping ---- */
+  const pushDays = daysSince(m.pushed_at);
+  const mk = (step, st, ev) => ({step, st, ev});
+  const steps = [];
+  const prepOk = !!P.readme && !!m.description;
+  steps.push(mk('PREPARE', prepOk ? 'ok' : (P.readme || m.description) ? 'warn' : 'gap',
+    prepOk ? 'README and repository description establish scope and ownership.'
+           : (P.readme || m.description) ? `Partial context — ${P.readme ? 'description missing' : 'README missing'}.`
+           : 'No README or description — purpose undocumented.'));
+  steps.push(mk('CATEGORIZE', sens.length >= 3 ? 'warn' : 'ok',
+    sens.length ? `Indicators detected (${sens.length}): ${sens.slice(0,4).join(', ')} — formal impact categorization recommended.`
+                : 'No sensitive-data indicators — LOW impact candidate.'));
+  const selN = [secMd, depbot].filter(Boolean).length;
+  steps.push(mk('SELECT', selN === 2 ? 'ok' : selN === 1 ? 'warn' : 'gap',
+    `Vulnerability disclosure ${secMd?'✓':'✗'} · dependency monitoring ${depbot?'✓':'✗'}.`));
+  const implN = [P.ci, P.tests, codeown, depbot].filter(Boolean).length;
+  steps.push(mk('IMPLEMENT', implN >= 3 ? 'ok' : implN >= 1 ? 'warn' : 'gap',
+    `CI ${P.ci?'✓':'✗'} · tests ${P.tests?'✓':'✗'} · CODEOWNERS ${codeown?'✓':'✗'} · dependabot ${depbot?'✓':'✗'} — ${implN}/4 safeguards in place.`));
+  steps.push(mk('ASSESS', secWf.length ? 'ok' : P.ci ? 'warn' : 'gap',
+    secWf.length ? `Security scanning in CI: ${secWf.slice(0,2).join(', ')}.`
+                 : P.ci ? 'CI present but no security-scanning workflow detected.'
+                 : 'No CI — no automated assessment evidence.'));
+  const authN = [P.release, m.license].filter(Boolean).length;
+  steps.push(mk('AUTHORIZE', authN === 2 ? 'ok' : authN === 1 ? 'warn' : 'gap',
+    (P.release ? `Latest release ${P.release.tag} (${rel(P.release.at)}). ` : 'No published releases. ') +
+    (m.license ? `License ${m.license.spdx_id} on record.` : 'No license on record.')));
+  steps.push(mk('MONITOR', (pushDays <= 30 && (P.ci || depbot)) ? 'ok' : pushDays <= 180 ? 'warn' : 'gap',
+    `Last push ${rel(m.pushed_at)} · ${P.contribTotal || 0} contributors · ${fmtN(m.open_issues_count)} open items.`));
+  const val = {ok:100, warn:50, gap:0};
+  const rmfScore = Math.round(steps.reduce((s,r) => s + val[r.st], 0) / steps.length);
+  const nOk = steps.filter(r=>r.st==='ok').length, nW = steps.filter(r=>r.st==='warn').length, nG = steps.filter(r=>r.st==='gap').length;
+  P.rmf = {steps, score: rmfScore, ok:nOk, warn:nW, gap:nG};
+
+  /* ---- EU AI Act screening ---- */
+  const aiHits = AI_SIGNALS.filter(k => scanText.includes(k));
+  const proh   = AI_PROHIBITED.filter(k => scanText.includes(k));
+  const high   = AI_HIGH.filter(k => scanText.includes(k));
+  let tier;
+  if (proh.length) tier = {key:'prohibited', word:'PROHIBITED-PRACTICE RISK', arts:'ART. 5', cls:'bad',
+    note:'Indicators match practices prohibited under the EU AI Act. Independent legal review is required before any deployment.', obl:['Cease deployment pending legal review','Document screening evidence']};
+  else if (aiHits.length && high.length) tier = {key:'high', word:'HIGH-RISK INDICATORS', arts:'ANNEX III', cls:'bad',
+    note:'AI-system signals overlap with Annex III high-risk domains. Conformity assessment, technical documentation and human oversight (Art. 9–15) likely apply.', obl:['Conformity assessment','Technical documentation (Art. 11)','Human oversight (Art. 14)','Post-market monitoring']};
+  else if (aiHits.length) tier = {key:'limited', word:'LIMITED RISK', arts:'ART. 13 · 50', cls:'warn',
+    note:'AI-system indicators present. Transparency obligations apply: disclose AI interaction and provide machine-readable marking of synthetic content.', obl:['AI-interaction disclosure (Art. 50)','Machine-readable marking','Intended-purpose documentation']};
+  else if (high.length) tier = {key:'domain', word:'DOMAIN-SENSITIVE', arts:'ANNEX III — VERIFY', cls:'warn',
+    note:'Sensitive-domain keywords without clear AI-system signals. Verify whether the Annex III high-risk classification applies to the deployed system.', obl:['Scope verification','Document intended use']};
+  else tier = {key:'minimal', word:'MINIMAL RISK', arts:'OUT OF SCOPE', cls:'ok',
+    note:'No AI-system indicators detected — treated as general-purpose software. Standard software obligations only.', obl:['None beyond standard software duties']};
+  P.ai = {tier, hits: aiHits, high, proh};
+
+  const factor = {prohibited:.4, high:.7, domain:.85, limited:.9, minimal:1}[tier.key];
+  P.secScore = Math.round(rmfScore * factor);
+
+  say(A, `▸ control sweep: SECURITY.md ${secMd?'✓':'✗'} · dependabot ${depbot?'✓':'✗'} · CODEOWNERS ${codeown?'✓':'✗'} · security CI ${secWf.length?'✓':'✗'}`, (secMd||depbot)?'ok':'warn');
+  say(A, sens.length ? `▸ sensitive-data indicators (${sens.length}): ${sens.slice(0,5).join(', ')}` : '▸ sensitive-data indicators: none detected', sens.length ? 'warn' : 'ok');
+  say(A, `▸ NIST RMF mapping: ${nOk} satisfied · ${nW} partial · ${nG} gaps — readiness ${rmfScore}/100`);
+  say(A, `▸ EU AI Act screening: ${aiHits.length} AI-system signal(s), ${high.length} domain indicator(s), ${proh.length} prohibited-practice hit(s)`);
+  say(A, `▸ tier hypothesis: ${tier.word} — ${tier.arts}`, tier.cls==='ok' ? 'ok' : 'warn');
+  say(A, 'Compliance mapping complete. Handing off to WARDEN.');
+  setAgent('guard','done');
+}
+
+async function agentWarden(P){
+  state.cur = 'warden'; setAgent('warden','working'); const A = 'warden';
+  say(A, 'Synthesizing five specialist reports…');
+  const D = buildDossier(P); P.D = D;
+  say(A, `▸ activity ${D.scores.activity} · documentation ${D.scores.docs} · community ${D.scores.community} · engineering ${D.scores.eng} · compliance ${D.scores.compliance}`);
+  say(A, `▸ weighted composite: ${D.score}/100 — verdict: ${D.tier.word} (${D.tier.note})`);
+  if (D.recs.length) D.recs.forEach(r => say(A, `▸ recommendation: ${r}`));
+  else say(A, '▸ no blocking gaps detected — this repository is in excellent standing.', 'ok');
+  say(A, 'Dossier compiled. Rendering report…');
+  setAgent('warden','done');
+}
+
+function buildDossier(P){
+  const m = P.meta;
+  const langs = P.langList || [];
+  const daysPush = daysSince(m.pushed_at);
+  const recency = daysPush<=7?100 : daysPush<=30?85 : daysPush<=90?60 : daysPush<=180?35 : daysPush<=365?15 : 5;
+  const volume = Math.min(100, ((P.perWeek||0)/8)*100);
+  const activity = Math.round(recency*.6 + volume*.4);
+  const docs = P.readme ? P.docScore
+    : Math.min(45, 5 + (P.aux.license?15:0) + (P.aux.contributing?15:0) + (P.aux.coc?10:0) + (P.aux.security?10:0));
+  const cN = P.contribTotal || 0;
+  const sC = Math.min(100, Math.log2(cN+1)/Math.log2(201)*100);
+  const sS = Math.min(100, Math.log10((m.stargazers_count||0)+1)/Math.log10(10001)*100);
+  const community = Math.round(Math.min(100, sC*.5 + sS*.35 + (P.aux.contributing?15:0)));
+  const eng = Math.round(Math.min(100, (P.ci?30:0) + (P.tests?25:0) + (P.docker?12:0) + (P.aux.license?18:0) + (P.compose?5:0) + (langs.length>=3?5:0) + (P.readme?5:0)));
+  const compliance = P.secScore;
+  const score = Math.round(activity*.25 + docs*.20 + community*.15 + eng*.20 + compliance*.20);
+  const tier = score>=80 ? {word:'CLEARED', cls:'', note:'fit for duty'}
+    : score>=60 ? {word:'SOUND', cls:'', note:'minor wear noted'}
+    : score>=40 ? {word:'FLAGGED', cls:'warn', note:'needs attention'}
+    : {word:'CRITICAL', cls:'bad', note:'high risk — proceed with care'};
+  const scores = { activity, docs: Math.round(docs), community, eng, compliance };
+
+  const recs = [];
+  if (!P.readme) recs.push('Publish a README — document what this is, how to install it, and how to run it.');
+  if (!P.aux.license) recs.push('Add a LICENSE file — without one, default copyright applies and reuse is legally ambiguous.');
+  if (!P.ci) recs.push('Stand up CI under .github/workflows so every push is verified automatically.');
+  if (!P.tests) recs.push('Introduce a test suite — none was detected (tests/ directory or test config).');
+  if (!P.secCtl.secMd) recs.push('Add a SECURITY.md with a vulnerability-disclosure policy (NIST RMF: SELECT).');
+  if (!P.secCtl.depbot) recs.push('Enable Dependabot via .github/dependabot.yml to keep dependencies continuously patched.');
+  if (!P.secCtl.secWf.length && P.ci) recs.push('Add security scanning to CI (CodeQL, Semgrep or Trivy) — the RMF ASSESS step currently has no automated evidence.');
+  if (!P.secCtl.codeown) recs.push('Add a CODEOWNERS file so security-relevant changes receive qualified review.');
+  if (P.ai.tier.key === 'high' || P.ai.tier.key === 'prohibited')
+    recs.push(`EU AI Act: run a conformity assessment and prepare technical documentation before any EU deployment (${P.ai.tier.arts.toLowerCase()}).`);
+  else if (P.ai.tier.key === 'limited')
+    recs.push('EU AI Act Art. 50: add a clear AI-interaction disclosure to the product surface and README.');
+  if (P.readme && P.docGaps.length && P.docScore < 75)
+    recs.push(`Extend the README with ${P.docGaps.slice(0,3).join(', ').toLowerCase()} to lift documentation beyond ${Math.round(docs)}/100.`);
+  if (daysPush > 180) recs.push(`Last push was ${rel(m.pushed_at)} — if the project lives on, a maintenance-status note would help evaluators.`);
+
+  const signals = [
+    ['scout', `Public since ${fmtDate(m.created_at)} — ${fmtN(m.stargazers_count)} stars, ${fmtN(m.forks_count)} forks, ${fmtN(m.open_issues_count)} open items.`],
+    ['cartographer', `${langs.length ? `${langs[0][0]} leads a ${langs.length}-language stack` : 'Stack census unavailable'} · CI ${P.ci?'live':'absent'} · tests ${P.tests?'detected':'not detected'}${P.docker?' · containerized':''}.`],
+    ['pulse', P.sampled ? `≈${P.perWeek.toFixed(1)} commits/week across the last ${P.sampled}; heartbeat ${P.strength.toLowerCase()}; last push ${rel(m.pushed_at)}.` : 'No commit history to measure.'],
+    ['archivist', P.readme ? `README runs ${fmtN(P.readmeStats.words)} words — ${P.docCovered.length}/${P.docChecks.length} core sections verified.` : 'No README — the repository documents itself nowhere.'],
+    ['guard', `NIST RMF readiness ${P.rmf.score}/100 (${P.rmf.ok} satisfied · ${P.rmf.warn} partial · ${P.rmf.gap} gaps) · EU AI Act screening: ${P.ai.tier.word.toLowerCase()} (${P.ai.tier.arts}).`],
+    ['warden', `Composite health ${score}/100 — ${tier.word.toLowerCase()}: ${tier.note}.`],
+  ];
+  return { repo:P.repo, name:m.name, owner:m.owner.login, score, tier, scores,
+           recs: recs.slice(0,6), signals,
+           rmf: P.rmf, ai: P.ai, fileNo:'GCRW-' + Math.floor(1000 + Math.random()*9000) };
+}
+
+/* ---------- dossier rendering ---------- */
+function gaugeSVG(label, val){
+  const C = (Math.PI*32).toFixed(1);
+  const off = (Math.PI*32*(1 - val/100)).toFixed(1);
+  return `<div class="gauge">
+    <svg viewBox="0 0 76 46">
+      <path class="track" d="M6 40 A32 32 0 0 1 70 40"/>
+      <path class="gval" d="M6 40 A32 32 0 0 1 70 40" stroke-dasharray="${C}" stroke-dashoffset="${C}" data-off="${off}"/>
+    </svg>
+    <b>${val}</b><span>${label}</span>
+  </div>`;
+}
+function langBar(langs){
+  const total = langs.reduce((s,[,b]) => s+b, 0) || 1;
+  const pal = ['#0B2E59','#1E9E5A','#7C93AE','#B9C6D6','#5A6E86'];
+  const top = langs.slice(0,5), rest = langs.slice(5).reduce((s,[,b]) => s+b, 0);
+  let acc = 0;
+  const segs = top.map(([n,b],i) => { const p = b/total*100; acc += p;
+    return `<i style="width:${p}%;background:${pal[i]}" title="${esc(n)}"></i>`; });
+  if (rest > 0) segs.push(`<i style="width:${100-acc}%;background:#E2E8F0" title="Other"></i>`);
+  const legend = top.map(([n,b],i) => `<span class="lgit"><i style="background:${pal[i]}"></i>${esc(n)} <b>${(b/total*100).toFixed(1)}%</b></span>`).join('')
+    + (rest > 0 ? `<span class="lgit"><i style="background:#E2E8F0"></i>Other <b>${(rest/total*100).toFixed(1)}%</b></span>` : '');
+  return `<div class="langbar">${segs.join('')}</div><div class="lg">${legend}</div>`;
+}
+function cadenceSVG(buckets){
+  const max = Math.max(...buckets, 1);
+  const bw=16, gp=9, W=295, H=92, base=72;
+  let bars = '';
+  buckets.forEach((v,i) => {
+    const x = 2 + i*(bw+gp);
+    const h = v ? Math.max(2, Math.round(v/max*48)) : 0;
+    bars += `<rect x="${x}" y="${base-h}" width="${bw}" height="${h}" class="${i===11?'now':''}"/>`;
+  });
+  const now = new Date();
+  const lbl = d => d.toLocaleString('en',{month:'short'}).toUpperCase();
+  return `<svg viewBox="0 0 ${W} ${H}" class="cad" role="img" aria-label="Commits per week, last 12 weeks">
+    <line x1="0" y1="${base+.5}" x2="${W}" y2="${base+.5}" class="axis"/>
+    ${bars}
+    <text x="2" y="${H-4}" class="tick">${lbl(new Date(now.getTime() - 11.5*6048e5))}</text>
+    <text x="${W-2}" y="${H-4}" text-anchor="end" class="tick nowt">${lbl(now)}</text>
+  </svg>`;
+}
+function rmfHTML(rmf){
+  const pill = {ok:['SATISFIED','p-ok'], warn:['PARTIAL','p-warn'], gap:['GAP','p-gap']};
+  return `<div class="rmf">` + rmf.steps.map((r,i) =>
+    `<div class="rmf-row">
+       <div class="rmf-h"><b><i>${String(i+1).padStart(2,'0')}</i>${r.step}</b><span class="pill ${pill[r.st][1]}">${pill[r.st][0]}</span></div>
+       <p class="rmf-ev">${esc(r.ev)}</p>
+     </div>`).join('') + `</div>
+     <p class="cap">RMF READINESS ${rmf.score}/100 · ${rmf.ok} SATISFIED · ${rmf.warn} PARTIAL · ${rmf.gap} GAPS</p>`;
+}
+function aiHTML(ai){
+  const t = ai.tier;
+  const chips = [...(ai.proh.length ? ai.proh.slice(0,3) : []), ...ai.hits.slice(0,4), ...ai.high.slice(0,3)];
+  return `<div class="ai">
+    <span class="ai-badge ${t.cls}">${t.word}</span>
+    <p class="ai-note">${esc(t.note)}</p>
+    ${chips.length ? `<div class="chips">${chips.map(c => `<span class="chip">${esc(c.trim())}</span>`).join('')}</div>` : ''}
+    <p class="ai-arts">RELEVANT PROVISIONS: ${t.arts}</p>
+    <p class="ai-disc">OBLIGATIONS SCREENED: ${t.obl.join(' · ')} — automated heuristic screening from public repository metadata; not a legal determination.</p>
+  </div>`;
+}
+function countUp(el, to){
+  const t0 = performance.now(), dur = 1100;
+  (function step(t){
+    const p = Math.min(1, (t - t0)/dur), e = 1 - Math.pow(1-p, 3);
+    el.textContent = Math.round(to*e);
+    if (p < 1) requestAnimationFrame(step);
+  })(t0);
+}
+function renderDossier(D, P){
+  const m = P.meta;
+  const metaPairs = [
+    ['STARS',fmtN(m.stargazers_count)],['FORKS',fmtN(m.forks_count)],['OPEN',fmtN(m.open_issues_count)],
+    ['LICENSE',m.license?m.license.spdx_id:'NONE'],['RMF',D.rmf.score+'/100'],['AI ACT',D.ai.tier.key.toUpperCase()],
+    ['CREATED',fmtDate(m.created_at).slice(0,4)],['PUSHED',rel(m.pushed_at).toUpperCase()]
+  ];
+  const sigRows = D.signals.map(([id,t]) =>
+    `<div class="sig"><span class="sp">${PATCH[id]}</span><b>${AGMAP[id].name}</b><p>${esc(t)}</p></div>`).join('');
+  const recRows = D.recs.length
+    ? D.recs.map((r,i) => `<div class="rec"><b>${String(i+1).padStart(2,'0')}</b><p>${esc(r)}</p></div>`).join('')
+    : `<div class="rec"><b>✓</b><p>No blocking gaps — this repository is in excellent standing.</p></div>`;
+  const contribRows = (P.top || []).length
+    ? P.top.map((c,i) => { const mx = P.top[0].contributions || 1;
+        return `<div class="contrib"><span class="crank">${String(i+1).padStart(2,'0')}</span><span class="cname">${esc(c.login || 'anonymous')}</span><span class="cbar"><i style="width:${Math.round(c.contributions/mx*100)}%"></i></span><b>${fmtN(c.contributions)}</b></div>`; }).join('')
+    : `<p class="none">No contributor records.</p>`;
+  dossierHost.innerHTML = `
+  <section class="dossier" id="dossier">
+    <div class="d-top"><span>§ ASSESSMENT REPORT — FINDINGS OF THE CREW</span><span>FILE ${D.fileNo} · ${new Date().toISOString().slice(0,10)}</span></div>
+    <div class="d-title">
+      <div>
+        <h2>${esc(D.name)}</h2>
+        <p class="d-owner">github.com/${esc(D.repo)}</p>
+        ${m.description ? `<p class="d-desc">${esc(m.description)}</p>` : ''}
+      </div>
+      <div class="d-verdict">
+        <div class="stamp ${D.tier.cls}">${D.tier.word}<small>GITHUB CREW · HEALTH ${D.score}/100</small></div>
+        <div class="scorebox"><div class="bigscore"><span id="bigScore">0</span><i>/100</i></div><em>COMPOSITE HEALTH</em></div>
+      </div>
+    </div>
+    <div class="d-meta">${metaPairs.map(([k,v]) => `<span>${k} <b>${esc(v)}</b></span>`).join('')}</div>
+    <div class="d-grid">
+      <div class="dcol">
+        <div class="slab">§01 VITALS — SUB-SCORES</div>
+        <div class="gauges">${gaugeSVG('ACTIVITY',D.scores.activity)}${gaugeSVG('DOCS',D.scores.docs)}${gaugeSVG('COMMUNITY',D.scores.community)}${gaugeSVG('ENGINEERING',D.scores.eng)}${gaugeSVG('COMPLIANCE',D.scores.compliance)}</div>
+        <div class="slab">§02 SECURITY CONTROLS — NIST RMF</div>
+        ${rmfHTML(D.rmf)}
+        <div class="slab">§03 STACK MANIFEST</div>
+        ${P.langList && P.langList.length ? langBar(P.langList) : `<p class="none">No language data recorded.</p>`}
+        <div class="slab">§04 CADENCE — LAST 12 WEEKS</div>
+        ${P.sampled ? cadenceSVG(P.buckets) : `<p class="none">No commits to chart.</p>`}
+        ${P.sampled ? `<p class="cap">SAMPLE: LAST ${P.sampled} COMMITS · ≈${P.perWeek.toFixed(1)}/WEEK · HEARTBEAT ${P.strength}</p>` : ''}
+      </div>
+      <div class="dcol">
+        <div class="slab">§05 SIGNALS</div>
+        ${sigRows}
+        <div class="slab">§06 EU AI ACT SCREENING</div>
+        ${aiHTML(D.ai)}
+        <div class="slab">§07 CONTRIBUTORS${P.contribTotal ? ` — ${P.contribTotal}${P.contribTotal===100?'+':''}` : ''}</div>
+        ${contribRows}
+        <div class="slab">§08 RECOMMENDATIONS</div>
+        ${recRows}
+      </div>
+    </div>
+    <div class="d-foot">
+      <span>COMPILED LOCALLY BY 6 RULE-BASED ANALYZERS · DATA: API.GITHUB.COM · ${new Date().toUTCString().slice(17,25)} UTC</span>
+      <button class="btn ghost sm" id="exportReport">Download JSON</button><button class="btn ghost sm" id="printReport">Print / PDF</button>
+      <button class="btn ghost sm" id="newMission">NEW MISSION</button>
+    </div>
+  </section>`;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    dossierHost.querySelectorAll('.gval').forEach((p,i) =>
+      setTimeout(() => { p.style.strokeDashoffset = p.dataset.off; }, 250 + i*130));
+  }));
+  countUp($('#bigScore'), D.score);
+  $('#printReport').onclick = () => window.print();
+  $('#exportReport').onclick = () => {
+    const blob = new Blob([JSON.stringify({mode:P.demo?'sample':'live',generatedAt:new Date().toISOString(),assessment:D},null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob), a=document.createElement('a'); a.href=url; a.download=P.repo.replace('/','-')+'-assessment.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+  };
+  if(P.demo) $('#dossier').insertAdjacentHTML('afterbegin','<p class="demo-notice">OFFLINE DEMO · Illustrative sample data, not a live repository assessment.</p>');
+  $('#newMission').onclick = () => {
+    window.scrollTo({top:0, behavior: RM ? 'auto' : 'smooth'});
+    setTimeout(() => { repoInput.focus(); repoInput.select(); }, 450);
+  };
+  setTimeout(() => $('#dossier').scrollIntoView({behavior: RM ? 'auto' : 'smooth', block:'start'}), 700);
+}
+
+/* ---------- run ---------- */
+const fmtElapsed = ms => { const s = ms/1000, m = Math.floor(s/60); return String(m).padStart(2,'0') + ':' + (s - m*60).toFixed(1).padStart(4,'0'); };
+function finishRun(status){
+  clearInterval(state.timer);
+  stElapsed.textContent = fmtElapsed(Date.now() - state.t0);
+  state.running = false;
+  stStatus.textContent = status;
+  stStatus.className = 'st-' + status.toLowerCase();
+  deployBtn.disabled = false; deployBtn.textContent = 'Deploy Crew';
+  abortBtn.classList.add('hidden');
+  wireDot.classList.remove('live');
+}
+async function runMission(){
+  if (state.running) return;
+  const repo = parseRepo(repoInput.value);
+  if (!repo){
+    inputErr.textContent = 'CANNOT PARSE — EXPECTED owner/repo OR A GITHUB.COM URL';
+    inputErr.classList.remove('hidden');
+    repoInput.classList.add('shake');
+    setTimeout(() => repoInput.classList.remove('shake'), 450);
+    repoInput.focus();
+    return;
+  }
+  inputErr.classList.add('hidden');
+  state.running = true; state.aborted = false;
+  state.controller = new AbortController(); state.t0 = Date.now();
+  callCount = 0; Object.keys(calls).forEach(k => calls[k] = 0);
+  q.length = 0;
+  feedEl.querySelectorAll('.fl:not(.curline)').forEach(n => n.remove());
+  feedEl.dataset.f = ''; filterTag.textContent = '—';
+  rosterEl.querySelectorAll('.agent').forEach(r => { r.classList.remove('filtered'); setAgent(r.dataset.agent,'standby'); });
+  dossierHost.innerHTML = '';
+  stStatus.textContent = 'RUNNING'; stStatus.className = 'st-running';
+  stCalls.textContent = '0'; stQuota.textContent = '—/60'; stElapsed.textContent = '00:00.0';
+  deployBtn.disabled = true; deployBtn.textContent = 'Crew deployed…';
+  abortBtn.classList.remove('hidden');
+  wireDot.classList.add('live');
+  state.timer = setInterval(() => { stElapsed.textContent = fmtElapsed(Date.now() - state.t0); }, 100);
+  mission.scrollIntoView({behavior: RM ? 'auto' : 'smooth', block:'start'});
+
+  const fresh = !cache.has(repo);
+  const P = fresh ? {repo} : cache.get(repo);
+  const beat = () => wait(RM ? 0 : 240);
+  try {
+    sys(`CREW DEPLOYED · TARGET ${repo} · ${fresh ? 'LIVE COLLECTION' : 'CACHED INTELLIGENCE'}`);
+    await agentScout(P, fresh);        if (state.aborted) throw 'abort';  await beat();
+    await agentCartographer(P, fresh); if (state.aborted) throw 'abort';  await beat();
+    await agentPulse(P, fresh);        if (state.aborted) throw 'abort';  await beat();
+    await agentArchivist(P, fresh);    if (state.aborted) throw 'abort';  await beat();
+    await agentGuard(P, fresh);        if (state.aborted) throw 'abort';  await beat();
+    await agentWarden(P);              if (state.aborted) throw 'abort';
+    if (fresh) cache.set(repo, P);
+    while (printing || q.length) await wait(10);
+    sys(`MISSION COMPLETE IN ${fmtElapsed(Date.now() - state.t0)} · DOSSIER ISSUED`);
+    finishRun('COMPLETE');
+    renderDossier(P.D, P);
+  } catch(err){
+    if (state.aborted || err === 'abort' || (err instanceof GHError && err.kind === 'abort')){
+      while (printing || q.length) await wait(10);
+      rosterEl.querySelectorAll('[data-state=working]').forEach(r => setAgent(r.dataset.agent, 'standby', 'STOPPED'));
+      finishRun('ABORTED'); return;
+    }
+    const msgs = {
+      notfound: 'TARGET NOT FOUND — DOES NOT EXIST OR IS PRIVATE',
+      limit: 'GITHUB API RATE LIMIT REACHED (60/HR, UNAUTHENTICATED) — THE CREW STANDS DOWN',
+      quota: 'API QUOTA TOO LOW FOR A FULL MISSION (NEED ≥ 12 CALLS)',
+      net: 'NETWORK FAULT — COULD NOT REACH API.GITHUB.COM',
+      http: 'GITHUB API RETURNED AN ERROR'
+    };
+    const k = err instanceof GHError ? err.kind : 'net';
+    sys(`MISSION ABORTED · ${msgs[k] || msgs.http}`);
+    if (state.cur) setAgent(state.cur, 'failed');
+    finishRun('FAILED');
+  }
+}
+
+/* ---------- wiring ---------- */
+ $('#briefForm').addEventListener('submit', e => { e.preventDefault(); runMission(); });
+abortBtn.addEventListener('click', () => {
+  if (!state.running) return;
+  state.aborted = true;
+  state.controller.abort();
+});
+rosterEl.addEventListener('click', e => {
+  const row = e.target.closest('.agent'); if (!row) return;
+  const id = row.dataset.agent;
+  const already = feedEl.dataset.f === id;
+  feedEl.dataset.f = already ? '' : id;
+  rosterEl.querySelectorAll('.agent').forEach(r => r.classList.toggle('filtered', !already && r === row));
+  rosterEl.querySelectorAll('.agent').forEach(r => r.setAttribute('aria-pressed', String(r.classList.contains('filtered'))));
+  filterTag.textContent = already ? '—' : AGMAP[id].name;
+});
+ $('#navDeploy').addEventListener('click', () => {
+  window.scrollTo({top:0, behavior: RM ? 'auto' : 'smooth'});
+  setTimeout(() => repoInput.focus(), 400);
+});
+const EXAMPLES = ['sindresorhus/is','ollama/ollama','encode/httpx'];
+let exIdx = 0;
+ $('#exampleBtn').addEventListener('click', () => {
+  repoInput.value = 'https://github.com/' + EXAMPLES[exIdx % EXAMPLES.length];
+  exIdx++;
+  runMission();
+});
+rosterEl.addEventListener('keydown', e => {if(e.key==='Enter'||e.key===' '){e.preventDefault();e.target.closest('.agent')?.click();}});
+$('#demoBtn').onclick = () => {
+  if(state.running) return;
+  const now=new Date().toISOString();
+  cache.set('demo/field-notes', {repo:'demo/field-notes',demo:true,
+    meta:{name:'field-notes',owner:{login:'demo'},description:'An illustrative team knowledge base with a typed API and automated checks.',stargazers_count:1280,forks_count:84,open_issues_count:12,created_at:'2023-03-01T00:00:00Z',pushed_at:now,language:'TypeScript',license:{spdx_id:'MIT'},default_branch:'main',topics:['knowledge-base'],archived:false},
+    langs:{TypeScript:82000,CSS:12000,HTML:6000},root:['package.json','README.md','LICENSE','CONTRIBUTING.md','CODE_OF_CONDUCT.md','SECURITY.md','Dockerfile'].map(name=>({name,type:'file'})).concat([{name:'tests',type:'dir'}]),
+    wf:['ci.yml','codeql.yml'],ghDot:[{name:'dependabot.yml'},{name:'CODEOWNERS'}],release:{tag:'v1.4.0',at:now},
+    readme:'# Field Notes\nA team knowledge base.\n## Installation\nnpm install\n## Usage\nnpm start\n## API\nSee reference docs.\n## Testing\nnpm test\n## Contributing\nPull requests welcome.\n## License\nMIT',
+    commits:Array.from({length:48},(_,i)=>({commit:{author:{date:new Date(Date.now()-i*86400000).toISOString(),name:'Demo contributor'},message:(i%3?'feat: improve notes search':'fix: keyboard navigation')},author:{login:'demo-contributor'}})),
+    contribs:[{login:'alex-demo',contributions:120},{login:'sam-demo',contributions:75},{login:'jules-demo',contributions:42}]
+  });
+  repoInput.value='demo/field-notes'; runMission();
+};
+const tickClock = () => {};
+sys('CONSOLE IDLE — DEPLOY A CREW TO BEGIN.');
+})();
+</script>
+</body>
+</html>
