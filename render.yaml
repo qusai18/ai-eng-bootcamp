@@ -1,6 +1,6 @@
 # Ask chat: Docker API + static Next.js site.
 # Apply this Blueprint from the Render Dashboard (New > Blueprint).
-# Set OPENAI_API_KEY on ask-api when Render prompts for it.
+# Set OPENAI_API_KEY on ask-api and github-crew when Render prompts for it.
 services:
   - type: web
     name: ask-api
@@ -16,7 +16,6 @@ services:
   - type: web
     name: ask
     runtime: static
-    plan: free
     rootDir: web
     buildCommand: npm install && npm run build
     staticPublishPath: ./web/out
@@ -26,6 +25,17 @@ services:
           type: web
           name: ask-api
           envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    name: github-crew
+    runtime: docker
+    plan: free
+    dockerfilePath: ./githubcrew/Dockerfile
+    dockerContext: ./githubcrew
+    healthCheckPath: /health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
 
   - type: web
     name: maryiam-daily-jobs
