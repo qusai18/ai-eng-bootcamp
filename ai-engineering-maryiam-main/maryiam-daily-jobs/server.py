@@ -317,7 +317,9 @@ def run_board_scrape() -> list[dict]:
         print(f"[scrape] saved {len(jobs)} board jobs")
         return load_board_scrape()
     except Exception as exc:
-        print(f"[scrape] failed: {exc}")
+        import traceback
+
+        print(f"[scrape] failed: {exc}\n{traceback.format_exc()}", flush=True)
         return load_board_scrape()
 
 
@@ -439,23 +441,27 @@ def collect_jobs(strategy: dict, force: bool = False) -> list[dict]:
             pass
 
     # Only Indeed / Dice / LinkedIn / Monster / CareerBuilder
-    if force or not (CACHE / "board_jobs.json").exists():
-        collected = run_board_scrape()
-    else:
-        collected = load_board_scrape()
-        # Refresh scrape if cache older than ~18 hours
+    needs_scrape = force or not (CACHE / "board_jobs.json").exists()
+    if not needs_scrape:
         try:
             meta = json.loads((CACHE / "board_jobs.json").read_text(encoding="utf-8"))
             fetched = meta.get("fetchedAt") or ""
+            age_h = 999.0
             if fetched:
                 age_h = (
                     datetime.now(timezone.utc)
                     - datetime.fromisoformat(fetched.replace("Z", "+00:00"))
                 ).total_seconds() / 3600
-                if age_h > 18:
-                    collected = run_board_scrape()
+            # An empty scrape is not a usable pool. Retry it after 15 minutes
+            # instead of serving a blank board for the rest of the day.
+            if age_h > 18 or (not meta.get("jobs") and age_h > 0.25):
+                needs_scrape = True
         except Exception:
-            pass
+            needs_scrape = True
+    if needs_scrape:
+        collected = run_board_scrape()
+    else:
+        collected = load_board_scrape()
 
     collected = [j for j in collected if is_allowed_board_url(j.get("url", ""))]
     collected = dedupe(collected)
@@ -601,7 +607,9 @@ def kpis(strategy: dict, apps: list[dict]) -> dict:
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args) -> None:
-        print(f"[http] {self.address_string()} {fmt % args}")
+        if self.path.split("?", 1)[0] == "/api/health":
+            return
+        print(f"[http] {self.address_string()} {fmt % args}", flush=True)
 
     def _cors(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
