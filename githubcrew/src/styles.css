@@ -1,4 +1,4 @@
-﻿:root{
+:root{
     --navy:#0B2E59; --navy2:#08203F; --deep:#0A2444;
     --ink:#22364C; --ink2:#5A6E86; --hair:#E2E8F0; --hair2:#EEF2F7;
     --green:#1E9E5A; --green-d:#157A44; --blue:#1A6FC4;
@@ -74,7 +74,7 @@
   .note li{list-style:none;display:flex;gap:10px;font-size:14px;line-height:1.55;color:var(--ink2);padding:6px 0;border-top:1px solid var(--hair)}
   .note li:first-of-type{border-top:0}
   .note li b{color:var(--ink);font-weight:600}
-  .note li::before{content:'â€”';color:var(--green);font-weight:700;flex:none}
+  .note li::before{content:'—';color:var(--green);font-weight:700;flex:none}
 
   /* ---------- crew cards ---------- */
   .crew{padding:44px 0 30px}

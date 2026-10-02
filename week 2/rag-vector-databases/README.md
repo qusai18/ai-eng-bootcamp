@@ -20,9 +20,7 @@ This notebook contains a complete, self-contained guide to building Retrieval Au
    ```
 
 2. **Set up environment:**
-   Create a `.env` file with your OpenAI API key:
-   ```
-   OPENAI_API_KEY=your_api_key_here
+\ai-eng-bootcamp for .env file
    ```
 
 3. **Open the notebook:**

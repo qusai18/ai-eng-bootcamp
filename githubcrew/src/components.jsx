@@ -118,7 +118,7 @@ export function Crew() {
                 <span className="c-num">{String(i + 1).padStart(2, '0')}</span>
               </div>
               <span className="c-label">Phase {String(i + 1).padStart(2, '0')} · {a.role}</span>
-              <h3>{a.name.charAt(0)}{a.name.slice(1).toLowerCase()}</h3>
+              <h3>{`${a.name.charAt(0)}${a.name.slice(1).toLowerCase()}`}</h3>
               <p>{a.line}</p>
             </div>
           ))}
