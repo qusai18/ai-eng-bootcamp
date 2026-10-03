@@ -21,7 +21,7 @@
       color: var(--ink);
       font-family: "Segoe UI", sans-serif;
     }
-    main { max-width: 820px; margin: 0 auto; padding: 40px 20px 72px; }
+    main { max-width: 1080px; margin: 0 auto; padding: 40px 20px 72px; }
     h1 { font-size: 2rem; margin: 0 0 8px; }
     h2 { font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin: 28px 0 10px; }
     p { line-height: 1.5; }
@@ -69,9 +69,38 @@
       border-radius: 10px;
       padding: 12px 14px;
     }
-    .strategy { flex: 1 1 240px; text-align: left; padding: 12px; border-radius: 12px; }
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr);
+      gap: 28px;
+      align-items: start;
+    }
+    .split .strategies { flex-direction: column; flex-wrap: nowrap; }
+    .strategy {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      width: 100%;
+      text-align: left;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--card);
+      cursor: pointer;
+    }
+    .strategy:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+    .strategy input { margin-top: 4px; accent-color: var(--accent); }
     .strategy strong { display: block; margin-bottom: 4px; }
     .strategy span { display: block; color: var(--muted); font-size: 0.88rem; line-height: 1.4; }
+    .synopsis-doc + .synopsis-doc { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 16px;
+      margin: 14px 0;
+    }
+    .stats strong { display: block; font-size: 1.15rem; }
+    .stats span { color: var(--muted); font-size: 0.82rem; }
     .ask { display: flex; gap: 10px; }
     article, .compare-item { white-space: pre-wrap; line-height: 1.55; }
     .error { color: #9f1239; }
@@ -90,7 +119,8 @@
     @media (max-width: 640px) {
       .result-row { grid-template-columns: 1fr 1fr; }
     }
-    @media (max-width: 640px) {
+    @media (max-width: 800px) {
+      .split { grid-template-columns: 1fr; }
       .ask { flex-direction: column; }
     }
   </style>
@@ -114,8 +144,16 @@
       <button type="button" class="ghost" id="clear-docs">Clear documents</button>
     </div>
 
-    <h2>Chunking strategy</h2>
-    <div class="strategies" id="strategies"></div>
+    <section class="split">
+      <div>
+        <h2>Chunking strategy</h2>
+        <div class="strategies" id="strategies"></div>
+      </div>
+      <div>
+        <h2>Document synopsis</h2>
+        <article class="card" id="synopsis"></article>
+      </div>
+    </section>
     <div class="row" style="margin-top: 12px;">
       <button type="button" id="index-btn">Chunking Documents</button>
       <button type="button" class="ghost" id="compare">Compare all strategies</button>
@@ -154,6 +192,9 @@
       indexedKey: "",
       bestStrategy: "",
       prompts: [],
+      synopsis: [],
+      recommended: null,
+      strategyTouched: false,
     };
 
     const docsEl = document.querySelector("#docs");
@@ -200,22 +241,81 @@
     function renderStrategies() {
       strategiesEl.replaceChildren();
       state.strategies.forEach((item) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = `strategy${item.id === state.strategy ? " active" : ""}`;
-        const suggestedId = state.bestStrategy || (state.mode === "multiple" ? "document" : "recursive");
-        const badge = state.bestStrategy ? "best" : "suggested";
+        const label = document.createElement("label");
+        label.className = "strategy";
+        const input = document.createElement("input");
+        input.type = "radio";
+        input.name = "chunk-strategy";
+        input.value = item.id;
+        input.checked = item.id === state.strategy;
+        const copy = document.createElement("div");
         const title = document.createElement("strong");
-        title.textContent = item.id === suggestedId ? `${item.name} · ${badge}` : item.name;
+        let badge = "";
+        if (item.id === state.bestStrategy) badge = "best";
+        else if (state.recommended && item.id === state.recommended.strategy) badge = "recommended";
+        title.textContent = badge ? `${item.name} · ${badge}` : item.name;
         const summary = document.createElement("span");
         summary.textContent = `${item.summary} Best for: ${item.best_for}.`;
-        button.append(title, summary);
-        button.addEventListener("click", () => {
+        copy.append(title, summary);
+        input.addEventListener("change", () => {
           state.strategy = item.id;
+          state.strategyTouched = true;
           renderStrategies();
         });
-        strategiesEl.append(button);
+        label.append(input, copy);
+        strategiesEl.append(label);
       });
+    }
+
+    function renderSynopsis() {
+      const panel = document.querySelector("#synopsis");
+      panel.replaceChildren();
+      if (!state.files.length) {
+        const note = document.createElement("p");
+        note.className = "meta";
+        note.textContent = "Upload a document to see its title, length, and a recommended chunking strategy.";
+        panel.append(note);
+        return;
+      }
+      if (!state.synopsis.length) {
+        const note = document.createElement("p");
+        note.className = "meta";
+        note.textContent = "Reading the document…";
+        panel.append(note);
+        return;
+      }
+      state.synopsis.forEach((doc) => {
+        const block = document.createElement("div");
+        block.className = "synopsis-doc";
+        const title = document.createElement("strong");
+        title.textContent = doc.title;
+        const summary = document.createElement("p");
+        summary.textContent = doc.summary;
+        const stats = document.createElement("div");
+        stats.className = "stats";
+        [
+          [doc.pages_estimated ? "Pages (estimated)" : "Pages", doc.pages.toLocaleString()],
+          ["Words", doc.words.toLocaleString()],
+          ["Characters", doc.characters.toLocaleString()],
+          ["Recommended strategy", state.recommended?.name || ""],
+        ].forEach(([labelText, value]) => {
+          const cell = document.createElement("div");
+          const number = document.createElement("strong");
+          number.textContent = String(value);
+          const caption = document.createElement("span");
+          caption.textContent = labelText;
+          cell.append(number, caption);
+          stats.append(cell);
+        });
+        block.append(title, summary, stats);
+        panel.append(block);
+      });
+      if (state.recommended?.reason) {
+        const reason = document.createElement("p");
+        reason.className = "meta";
+        reason.textContent = state.recommended.reason;
+        panel.append(reason);
+      }
     }
 
     function showRecommendation(recommendation, scores) {
@@ -328,31 +428,52 @@
       const key = filesKey();
       if (!state.files.length) {
         state.prompts = [];
+        state.synopsis = [];
+        state.recommended = null;
         renderPrompts();
+        renderSynopsis();
         return;
       }
       state.prompts = [];
+      state.synopsis = [];
+      state.recommended = null;
       renderPrompts();
+      renderSynopsis();
       const form = new FormData();
       state.files.forEach((file) => form.append("files", file));
       try {
         const response = await fetch("/prompts", { method: "POST", body: form });
         const body = await response.json();
         if (filesKey() !== key) return;
-        if (!response.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Could not write questions");
+        if (!response.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Could not read the document");
         state.prompts = body.prompts || [];
+        state.synopsis = body.documents || [];
+        state.recommended = body.recommendation || null;
+        if (!state.strategyTouched && state.recommended?.strategy) {
+          state.strategy = state.recommended.strategy;
+        }
       } catch (error) {
         if (filesKey() !== key) return;
         state.prompts = [];
+        state.synopsis = [];
+        state.recommended = null;
         const box = document.querySelector("#examples");
         box.replaceChildren();
         const note = document.createElement("p");
         note.className = "meta error";
         note.textContent = error.message;
         box.append(note);
+        const panel = document.querySelector("#synopsis");
+        panel.replaceChildren();
+        const synopsisNote = document.createElement("p");
+        synopsisNote.className = "meta error";
+        synopsisNote.textContent = error.message;
+        panel.append(synopsisNote);
         return;
       }
+      renderStrategies();
       renderPrompts();
+      renderSynopsis();
     }
 
     function filesKey() {
@@ -464,7 +585,11 @@
       input.addEventListener("change", () => {
         if (!input.checked) return;
         state.mode = input.value;
-        state.strategy = state.mode === "multiple" ? "document" : "recursive";
+        state.strategyTouched = false;
+        state.bestStrategy = "";
+        if (!state.files.length) {
+          state.strategy = state.mode === "multiple" ? "document" : "recursive";
+        }
         document.querySelector("#files").multiple = state.mode === "multiple";
         if (state.mode === "single" && state.files.length > 1) {
           state.files = state.files.slice(0, 1);
@@ -472,7 +597,7 @@
         }
         renderFiles();
         renderStrategies();
-        if (state.mode === "single") refreshPrompts();
+        refreshPrompts();
       });
     });
 
@@ -480,6 +605,8 @@
       const picked = [...event.target.files];
       event.target.value = "";
       if (!picked.length) return;
+      state.strategyTouched = false;
+      state.bestStrategy = "";
       if (state.mode === "single") {
         state.files = picked.slice(0, 1);
       } else {
@@ -502,9 +629,13 @@
       state.indexedKey = "";
       state.bestStrategy = "";
       state.prompts = [];
+      state.synopsis = [];
+      state.recommended = null;
+      state.strategyTouched = false;
       state.last = null;
       renderFiles();
       renderPrompts();
+      renderSynopsis();
       answerEl.hidden = true;
       scoreEl.hidden = true;
       sourcesLabel.hidden = true;
@@ -573,6 +704,7 @@
 
     renderFiles();
     renderPrompts();
+    renderSynopsis();
     loadStrategies();
   </script>
 </body>

@@ -1,9 +1,13 @@
 import io
 import json
+import math
 import os
+import re
+import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
+from xml.etree import ElementTree
 
 import numpy as np
 from dotenv import load_dotenv
@@ -290,7 +294,47 @@ def strategies() -> dict:
     }
 
 
-def _extract_text(name: str, data: bytes) -> str:
+def _docx_page_count(data: bytes) -> int | None:
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            if "docProps/app.xml" not in archive.namelist():
+                return None
+            root = ElementTree.fromstring(archive.read("docProps/app.xml"))
+    except (zipfile.BadZipFile, ElementTree.ParseError, KeyError):
+        return None
+    for node in root.iter():
+        if node.tag.endswith("Pages") and node.text and node.text.strip().isdigit():
+            pages = int(node.text.strip())
+            return pages or None
+    return None
+
+
+def _display_title(raw: str | None, filename: str, text: str) -> str:
+    title = re.sub(r"\s+", " ", (raw or "")).strip(" \t\r\n")
+    if title and title.lower() not in {"untitled", "unknown"}:
+        return title[:120]
+    for line in text.splitlines():
+        cleaned = line.strip().lstrip("#").strip()
+        if 3 <= len(cleaned) <= 90:
+            return cleaned
+    stem = Path(filename).stem.replace("_", " ").replace("-", " ").strip()
+    return stem or filename
+
+
+def _structure(text: str) -> tuple[int, int, float]:
+    headings = 0
+    lists = 0
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for line in lines:
+        if line.startswith("#") or (len(line) <= 60 and line.isupper() and any(char.isalpha() for char in line)):
+            headings += 1
+        elif re.match(r"^(?:[-*•]|\d+[.)])\s+\S", line):
+            lists += 1
+    ratio = lists / len(lines) if lines else 0.0
+    return headings, lists, ratio
+
+
+def _read_document(name: str, data: bytes) -> dict:
     suffix = Path(name).suffix.lower()
     if suffix not in ALLOWED_SUFFIXES:
         raise HTTPException(
@@ -299,18 +343,26 @@ def _extract_text(name: str, data: bytes) -> str:
         )
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail=f"{name} is larger than 10 MB")
+    title = ""
+    pages = 1
+    pages_estimated = False
     try:
         if suffix == ".txt":
             text = data.decode("utf-8", errors="replace")
+            pages_estimated = True
         elif suffix == ".pdf":
             from pypdf import PdfReader
 
             reader = PdfReader(io.BytesIO(data))
+            pages = max(len(reader.pages), 1)
+            meta = reader.metadata
+            title = str(getattr(meta, "title", "") or "")
             text = "\n\n".join(page.extract_text() or "" for page in reader.pages)
         elif suffix == ".docx":
             from docx import Document
 
             document = Document(io.BytesIO(data))
+            title = str(document.core_properties.title or "")
             parts = [paragraph.text.strip() for paragraph in document.paragraphs if paragraph.text.strip()]
             for table in document.tables:
                 for row in table.rows:
@@ -318,6 +370,11 @@ def _extract_text(name: str, data: bytes) -> str:
                     if cells:
                         parts.append(" | ".join(cells))
             text = "\n".join(parts)
+            saved_pages = _docx_page_count(data)
+            if saved_pages:
+                pages = saved_pages
+            else:
+                pages_estimated = True
         else:
             if suffix == ".ppt" and not data.startswith(b"PK"):
                 raise HTTPException(
@@ -327,6 +384,8 @@ def _extract_text(name: str, data: bytes) -> str:
             from pptx import Presentation
 
             presentation = Presentation(io.BytesIO(data))
+            title = str(presentation.core_properties.title or "")
+            pages = max(len(presentation.slides), 1)
             parts: list[str] = []
             for slide in presentation.slides:
                 for shape in slide.shapes:
@@ -345,7 +404,52 @@ def _extract_text(name: str, data: bytes) -> str:
     text = text.strip()
     if not text:
         raise HTTPException(status_code=400, detail=f"No text found in {name}")
-    return text[:MAX_EXTRACTED_CHARS]
+    text = text[:MAX_EXTRACTED_CHARS]
+    words = len(re.findall(r"\b[\w']+\b", text))
+    if pages_estimated:
+        pages = max(1, math.ceil(words / 400)) if words else 1
+    headings, _lists, list_ratio = _structure(text)
+    return {
+        "filename": name,
+        "title": _display_title(title, name, text),
+        "pages": pages,
+        "pages_estimated": pages_estimated,
+        "words": words,
+        "characters": len(text),
+        "headings": headings,
+        "list_ratio": list_ratio,
+        "text": text,
+    }
+
+
+def _extract_text(name: str, data: bytes) -> str:
+    return _read_document(name, data)["text"]
+
+
+def recommend_strategy(profiles: list[dict]) -> dict[str, str]:
+    if len(profiles) > 1:
+        key = "document"
+        reason = "Several files are uploaded, so document-based chunking keeps each file as its own source."
+    else:
+        doc = profiles[0]
+        words = int(doc["words"])
+        headings = int(doc["headings"])
+        if words < 180 and headings < 2:
+            key = "fixed"
+            reason = "This is a short note, so fixed-size chunks are enough and cheaper to embed."
+        elif float(doc["list_ratio"]) >= 0.3 and words >= 120:
+            key = "adaptive"
+            reason = "The text mixes lists and prose, so adaptive chunking keeps dense lines smaller than the surrounding paragraphs."
+        elif headings >= 3:
+            key = "hierarchical"
+            reason = "The document is organized into sections, so hierarchical chunking can store each section overview with its details."
+        elif headings < 2 and words >= 700:
+            key = "semantic"
+            reason = "The document is long and has few headings, so semantic chunking can split where the topic changes."
+        else:
+            key = "recursive"
+            reason = "The document reads like continuous prose, so recursive chunking can keep paragraphs together."
+    return {"strategy": key, "name": STRATEGIES[key]["name"], "reason": reason}
 
 
 def _fallback_prompts(documents: list[tuple[str, str]]) -> list[dict[str, str]]:
@@ -365,12 +469,20 @@ def _fallback_prompts(documents: list[tuple[str, str]]) -> list[dict[str, str]]:
     return [{"label": title[:32] or "Document", "question": f"What is {title or 'this document'} about?"}]
 
 
-def suggest_prompts(documents: list[tuple[str, str]]) -> list[dict[str, str]]:
+def _fallback_summary(text: str) -> str:
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", text) if part.strip()]
+    summary = " ".join(sentences[:2]).strip()
+    return summary[:500] or "The file contains text, but it has no complete sentences to summarize."
+
+
+def _model_notes(documents: list[tuple[str, str]]) -> tuple[list[dict[str, str]], dict[str, str]]:
     excerpts = "\n\n".join(f"# {name}\n{text[:3500]}" for name, text in documents)[:9000]
     instruction = (
-        "Write exactly 3 questions a reader could answer from the documents below. "
-        'Return JSON: {"prompts":[{"label":"2 to 4 words","question":"one sentence"}]}. '
-        "Use only topics that appear in the text.\n\n"
+        "Read the documents. Return JSON with two keys. "
+        '"prompts": exactly 3 objects {"label":"2 to 4 words","question":"one sentence"} '
+        "that a reader could answer from the text. "
+        '"synopses": one object per document {"name":"the filename","summary":"two sentences about that document"}. '
+        "Use only facts from the text.\n\n"
         f"{excerpts}"
     )
     try:
@@ -381,10 +493,12 @@ def suggest_prompts(documents: list[tuple[str, str]]) -> list[dict[str, str]]:
             messages=[{"role": "user", "content": instruction}],
         )
         payload = json.loads(completion.choices[0].message.content or "{}")
-        raw = payload.get("prompts") if isinstance(payload, dict) else None
     except (OpenAIError, json.JSONDecodeError, AttributeError, TypeError):
-        return _fallback_prompts(documents)
+        return _fallback_prompts(documents), {}
+    if not isinstance(payload, dict):
+        return _fallback_prompts(documents), {}
     prompts: list[dict[str, str]] = []
+    raw = payload.get("prompts")
     if isinstance(raw, list):
         for item in raw:
             if not isinstance(item, dict):
@@ -396,7 +510,41 @@ def suggest_prompts(documents: list[tuple[str, str]]) -> list[dict[str, str]]:
             prompts.append({"label": (label or question)[:40], "question": question[:300]})
             if len(prompts) == 3:
                 break
-    return prompts or _fallback_prompts(documents)
+    summaries: dict[str, str] = {}
+    raw_synopses = payload.get("synopses")
+    if isinstance(raw_synopses, list):
+        for item in raw_synopses:
+            if not isinstance(item, dict):
+                continue
+            filename = str(item.get("name") or "").strip()
+            summary = str(item.get("summary") or "").strip()
+            if filename and summary:
+                summaries[filename] = summary[:500]
+    return prompts or _fallback_prompts(documents), summaries
+
+
+def describe_documents(profiles: list[dict]) -> dict:
+    documents = [(str(profile["filename"]), str(profile["text"])) for profile in profiles]
+    prompts, summaries = _model_notes(documents)
+    public = []
+    for profile in profiles:
+        filename = str(profile["filename"])
+        public.append(
+            {
+                "filename": filename,
+                "title": profile["title"],
+                "pages": profile["pages"],
+                "pages_estimated": profile["pages_estimated"],
+                "words": profile["words"],
+                "characters": profile["characters"],
+                "summary": summaries.get(filename) or _fallback_summary(str(profile["text"])),
+            }
+        )
+    return {
+        "prompts": prompts,
+        "documents": public,
+        "recommendation": recommend_strategy(profiles),
+    }
 
 
 def _index_documents(mode: str, strategy: str, documents: list[tuple[str, str]]) -> dict:
@@ -462,12 +610,12 @@ def reset() -> dict[str, str]:
 async def prompts(files: list[UploadFile] = File(...)) -> dict:
     if not files or len(files) > 8:
         raise HTTPException(status_code=400, detail="Upload between 1 and 8 files")
-    documents: list[tuple[str, str]] = []
+    profiles: list[dict] = []
     for upload in files:
         name = Path(upload.filename or "document").name
         data = await upload.read()
-        documents.append((name, _extract_text(name, data)))
-    return {"prompts": suggest_prompts(documents)}
+        profiles.append(_read_document(name, data))
+    return describe_documents(profiles)
 
 
 @app.post("/documents")
