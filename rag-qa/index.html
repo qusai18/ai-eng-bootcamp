@@ -32,8 +32,21 @@
       border-radius: 14px;
       padding: 16px;
     }
-    .row, .modes, .docs, .strategies, .scores, .examples { display: flex; flex-wrap: wrap; gap: 8px; }
-    button, input, textarea, select { font: inherit; color: inherit; }
+    .row, .docs, .strategies, .scores, .examples { display: flex; flex-wrap: wrap; gap: 8px; }
+    button, input, select { font: inherit; color: inherit; }
+    .modes { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 12px; }
+    .modes label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .file-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
     button {
       border: 0;
       background: var(--accent);
@@ -42,23 +55,20 @@
       padding: 10px 14px;
       cursor: pointer;
     }
-    button.ghost, .modes button, .strategies button, .examples button, .score button {
+    button.ghost, .strategies button, .examples button, .score button {
       background: transparent;
       color: var(--ink);
       border: 1px solid var(--line);
     }
     button.active { background: var(--accent); color: white; border-color: var(--accent); }
     button:disabled { opacity: 0.6; cursor: wait; }
-    textarea, input[type="text"] {
+    input[type="text"] {
       width: 100%;
       border: 1px solid var(--line);
       background: var(--card);
       border-radius: 10px;
       padding: 12px 14px;
     }
-    textarea { min-height: 120px; resize: vertical; }
-    .doc { flex: 1 1 240px; }
-    .doc label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
     .strategy { flex: 1 1 240px; text-align: left; padding: 12px; border-radius: 12px; }
     .strategy strong { display: block; margin-bottom: 4px; }
     .strategy span { display: block; color: var(--muted); font-size: 0.88rem; line-height: 1.4; }
@@ -68,6 +78,18 @@
     .source { border-top: 1px solid var(--line); padding: 12px 0; color: #3c372f; white-space: pre-wrap; }
     .best { border-color: var(--accent); }
     .meta { color: var(--muted); font-size: 0.9rem; }
+    .result-row {
+      display: grid;
+      grid-template-columns: 1.4fr 0.5fr 0.7fr 0.9fr 0.8fr;
+      gap: 8px;
+      padding: 8px 0;
+      border-top: 1px solid var(--line);
+      font-size: 0.92rem;
+    }
+    .result-row.winner { font-weight: 650; }
+    @media (max-width: 640px) {
+      .result-row { grid-template-columns: 1fr 1fr; }
+    }
     @media (max-width: 640px) {
       .ask { flex-direction: column; }
     }
@@ -79,38 +101,38 @@
     <p class="lede">Index one document or several, pick a chunking strategy, then score the answer from 0 to 5. The highest average score is the strategy to keep.</p>
 
     <h2>Documents</h2>
-    <div class="modes" id="modes">
-      <button type="button" class="active" data-mode="single">Single document</button>
-      <button type="button" data-mode="multiple">Multiple documents</button>
+    <div class="modes">
+      <label><input type="radio" name="mode" value="single" checked /> Single document</label>
+      <label><input type="radio" name="mode" value="multiple" /> Multiple documents</label>
     </div>
     <div class="docs" id="docs"></div>
     <div class="row" style="margin-top: 10px;">
-      <button type="button" class="ghost" id="add-doc">Add document</button>
-      <button type="button" class="ghost" id="use-sample">Use sample</button>
       <label class="ghost" style="border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; cursor: pointer;">
-        Upload .txt or .md
-        <input id="files" type="file" accept=".txt,.md,text/plain,text/markdown" multiple hidden />
+        Upload document
+        <input id="files" type="file" accept=".txt,.pdf,.docx,.ppt,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain" hidden />
       </label>
+      <button type="button" class="ghost" id="clear-docs">Clear documents</button>
     </div>
 
     <h2>Chunking strategy</h2>
     <div class="strategies" id="strategies"></div>
     <div class="row" style="margin-top: 12px;">
-      <button type="button" id="index-btn">Index documents</button>
+      <button type="button" id="index-btn">Chunking Documents</button>
+      <button type="button" class="ghost" id="compare">Compare all strategies</button>
     </div>
     <p class="meta" id="index-status"></p>
+    <article class="card" id="index-results" hidden>
+      <p id="cost-summary"></p>
+      <p id="best-index"></p>
+      <div id="index-table"></div>
+    </article>
 
     <h2>Ask</h2>
     <form class="ask" id="ask-form">
       <input id="question" type="text" placeholder="Ask about the ingested documents" required maxlength="2000" />
       <button type="submit" id="submit">Ask</button>
     </form>
-    <div class="examples">
-      <button type="button" data-q="What is RAG?">What is RAG?</button>
-      <button type="button" data-q="What are the benefits of RAG?">Benefits of RAG</button>
-      <button type="button" data-q="What chunk size does the document recommend?">Chunk size</button>
-    </div>
-    <button type="button" class="ghost" id="compare">Compare all strategies</button>
+    <div class="examples" id="examples"></div>
 
     <article class="card" id="answer" hidden></article>
     <div class="score" id="score" hidden></div>
@@ -128,6 +150,10 @@
       strategy: "recursive",
       strategies: [],
       last: null,
+      files: [],
+      indexedKey: "",
+      bestStrategy: "",
+      prompts: [],
     };
 
     const docsEl = document.querySelector("#docs");
@@ -141,32 +167,34 @@
     const statusEl = document.querySelector("#index-status");
     const questionEl = document.querySelector("#question");
 
-    function docField(name, text) {
-      const wrap = document.createElement("div");
-      wrap.className = "doc";
-      const label = document.createElement("label");
-      label.textContent = name;
-      const area = document.createElement("textarea");
-      area.value = text || "";
-      area.placeholder = "Paste document text";
-      wrap.append(label, area);
-      return wrap;
-    }
-
-    function renderDocs() {
-      const existing = [...docsEl.querySelectorAll("textarea")].map((area) => area.value);
-      const total = state.mode === "single" ? 1 : Math.max(2, existing.length || 2);
+    function renderFiles() {
       docsEl.replaceChildren();
-      for (let i = 0; i < total; i += 1) {
-        docsEl.append(docField(`Document ${i + 1}`, existing[i] || ""));
+      if (!state.files.length) {
+        const empty = document.createElement("p");
+        empty.className = "meta";
+        empty.textContent = state.mode === "single"
+          ? "Upload one TXT, PDF, DOCX, or PowerPoint file."
+          : "Upload up to 8 TXT, PDF, DOCX, or PowerPoint files.";
+        docsEl.append(empty);
+        return;
       }
-    }
-
-    function collectDocuments() {
-      return [...docsEl.querySelectorAll(".doc")].map((wrap, index) => ({
-        name: wrap.querySelector("label").textContent || `Document ${index + 1}`,
-        text: wrap.querySelector("textarea").value.trim(),
-      })).filter((doc) => doc.text);
+      state.files.forEach((file, index) => {
+        const row = document.createElement("div");
+        row.className = "file-row";
+        const name = document.createElement("span");
+        name.textContent = file.name;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "ghost";
+        remove.textContent = "Remove";
+        remove.addEventListener("click", () => {
+          state.files.splice(index, 1);
+          renderFiles();
+          refreshPrompts();
+        });
+        row.append(name, remove);
+        docsEl.append(row);
+      });
     }
 
     function renderStrategies() {
@@ -175,9 +203,10 @@
         const button = document.createElement("button");
         button.type = "button";
         button.className = `strategy${item.id === state.strategy ? " active" : ""}`;
-        const suggestedId = state.mode === "multiple" ? "document" : "recursive";
+        const suggestedId = state.bestStrategy || (state.mode === "multiple" ? "document" : "recursive");
+        const badge = state.bestStrategy ? "best" : "suggested";
         const title = document.createElement("strong");
-        title.textContent = item.id === suggestedId ? `${item.name} · suggested` : item.name;
+        title.textContent = item.id === suggestedId ? `${item.name} · ${badge}` : item.name;
         const summary = document.createElement("span");
         summary.textContent = `${item.summary} Best for: ${item.best_for}.`;
         button.append(title, summary);
@@ -265,28 +294,138 @@
       showRecommendation(body.recommendation, body.scores);
     }
 
-    async function indexDocuments() {
-      const documents = collectDocuments();
-      if (!documents.length) {
-        statusEl.textContent = "Paste or upload at least one document.";
+    function renderPrompts() {
+      const box = document.querySelector("#examples");
+      box.replaceChildren();
+      if (!state.files.length) {
+        const note = document.createElement("p");
+        note.className = "meta";
+        note.textContent = "Upload a document to suggest questions.";
+        box.append(note);
+        return;
+      }
+      if (!state.prompts.length) {
+        const note = document.createElement("p");
+        note.className = "meta";
+        note.textContent = "Writing questions from the document…";
+        box.append(note);
+        return;
+      }
+      state.prompts.forEach((prompt) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = prompt.label;
+        button.title = prompt.question;
+        button.addEventListener("click", () => {
+          questionEl.value = prompt.question;
+          ask(prompt.question);
+        });
+        box.append(button);
+      });
+    }
+
+    async function refreshPrompts() {
+      const key = filesKey();
+      if (!state.files.length) {
+        state.prompts = [];
+        renderPrompts();
+        return;
+      }
+      state.prompts = [];
+      renderPrompts();
+      const form = new FormData();
+      state.files.forEach((file) => form.append("files", file));
+      try {
+        const response = await fetch("/prompts", { method: "POST", body: form });
+        const body = await response.json();
+        if (filesKey() !== key) return;
+        if (!response.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Could not write questions");
+        state.prompts = body.prompts || [];
+      } catch (error) {
+        if (filesKey() !== key) return;
+        state.prompts = [];
+        const box = document.querySelector("#examples");
+        box.replaceChildren();
+        const note = document.createElement("p");
+        note.className = "meta error";
+        note.textContent = error.message;
+        box.append(note);
+        return;
+      }
+      renderPrompts();
+    }
+
+    function filesKey() {
+      return `${state.mode}|${state.files.map((file) => `${file.name}:${file.size}:${file.lastModified}`).join("|")}`;
+    }
+
+    function money(usd) {
+      return `$${Number(usd).toFixed(6)}`;
+    }
+
+    function renderIndexReport(report) {
+      const panel = document.querySelector("#index-results");
+      if (!report) {
+        panel.hidden = true;
+        return;
+      }
+      panel.hidden = false;
+      document.querySelector("#cost-summary").textContent =
+        `Embedding cost: ${report.total_tokens.toLocaleString()} tokens, about ${money(report.total_cost_usd)} ` +
+        `(${report.model} at $${report.price_per_million} per 1M tokens).`;
+      document.querySelector("#best-index").textContent =
+        `Best performance: ${report.best_name} at ${report.best_performance} / 100, ` +
+        `using ${report.best_tokens.toLocaleString()} tokens (${money(report.best_cost_usd)}).`;
+      const table = document.querySelector("#index-table");
+      table.replaceChildren();
+      const header = document.createElement("div");
+      header.className = "result-row meta";
+      ["Strategy", "Chunks", "Tokens", "Cost", "Performance"].forEach((label) => {
+        const cell = document.createElement("span");
+        cell.textContent = label;
+        header.append(cell);
+      });
+      table.append(header);
+      report.rows.forEach((row) => {
+        const line = document.createElement("div");
+        line.className = `result-row${row.strategy === report.best_strategy ? " winner" : ""}`;
+        [row.name, String(row.chunks), row.tokens.toLocaleString(), money(row.cost_usd), `${row.performance}`].forEach((value) => {
+          const cell = document.createElement("span");
+          cell.textContent = value;
+          line.append(cell);
+        });
+        table.append(line);
+      });
+    }
+
+    async function indexDocuments(force = false) {
+      if (!state.files.length) {
+        statusEl.textContent = "Upload a document before chunking.";
         return false;
       }
-      if (state.mode === "single" && documents.length !== 1) {
-        statusEl.textContent = "Single-document mode uses the first box only.";
+      if (state.mode === "single" && state.files.length !== 1) {
+        statusEl.textContent = "Single document accepts one file.";
+        return false;
       }
-      const payloadDocs = state.mode === "single" ? [documents[0]] : documents;
-      statusEl.textContent = "Indexing…";
-      const response = await fetch("/documents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: state.mode, strategy: state.strategy, documents: payloadDocs }),
-      });
+      if (!force && state.indexedKey === filesKey()) return true;
+      statusEl.textContent = "Chunking every strategy…";
+      const form = new FormData();
+      form.append("mode", state.mode);
+      form.append("strategy", state.strategy);
+      state.files.forEach((file) => form.append("files", file));
+      const response = await fetch("/documents", { method: "POST", body: form });
       const body = await response.json();
       if (!response.ok) {
-        statusEl.textContent = body.detail || "Indexing failed";
+        statusEl.textContent = typeof body.detail === "string" ? body.detail : "Indexing failed";
         return false;
       }
-      statusEl.textContent = `Indexed ${body.documents.length} document(s) into ${body.chunk_count} ${body.strategy} chunks.`;
+      state.indexedKey = filesKey();
+      if (body.report?.best_strategy) {
+        state.strategy = body.report.best_strategy;
+        state.bestStrategy = body.report.best_strategy;
+      }
+      statusEl.textContent = `Indexed ${body.documents.length} document(s).`;
+      renderIndexReport(body.report);
       showRecommendation(body.recommendation, null);
       await loadStrategies();
       return true;
@@ -321,77 +460,71 @@
       }
     }
 
-    document.querySelector("#modes").addEventListener("click", (event) => {
-      const button = event.target.closest("[data-mode]");
-      if (!button) return;
-      state.mode = button.dataset.mode;
-      state.strategy = state.mode === "multiple" ? "document" : "recursive";
-      document.querySelectorAll("#modes button").forEach((item) => {
-        item.classList.toggle("active", item === button);
-      });
-      renderDocs();
-      renderStrategies();
-    });
-
-    document.querySelector("#add-doc").addEventListener("click", () => {
-      if (state.mode !== "multiple") {
-        state.mode = "multiple";
-        document.querySelectorAll("#modes button").forEach((item) => {
-          item.classList.toggle("active", item.dataset.mode === "multiple");
-        });
-        state.strategy = "document";
+    document.querySelectorAll('input[name="mode"]').forEach((input) => {
+      input.addEventListener("change", () => {
+        if (!input.checked) return;
+        state.mode = input.value;
+        state.strategy = state.mode === "multiple" ? "document" : "recursive";
+        document.querySelector("#files").multiple = state.mode === "multiple";
+        if (state.mode === "single" && state.files.length > 1) {
+          state.files = state.files.slice(0, 1);
+          statusEl.textContent = "Single document keeps the first file.";
+        }
+        renderFiles();
         renderStrategies();
+        if (state.mode === "single") refreshPrompts();
+      });
+    });
+
+    document.querySelector("#files").addEventListener("change", (event) => {
+      const picked = [...event.target.files];
+      event.target.value = "";
+      if (!picked.length) return;
+      if (state.mode === "single") {
+        state.files = picked.slice(0, 1);
+      } else {
+        const names = new Set(state.files.map((file) => file.name));
+        picked.forEach((file) => {
+          if (state.files.length >= 8 || names.has(file.name)) return;
+          names.add(file.name);
+          state.files.push(file);
+        });
       }
-      if (docsEl.children.length >= 8) return;
-      docsEl.append(docField(`Document ${docsEl.children.length + 1}`, ""));
+      renderFiles();
+      refreshPrompts();
     });
 
-    document.querySelector("#use-sample").addEventListener("click", async () => {
-      const body = await (await fetch("/sample")).json();
-      state.mode = "single";
-      state.strategy = "recursive";
-      document.querySelectorAll("#modes button").forEach((item) => {
-        item.classList.toggle("active", item.dataset.mode === "single");
-      });
-      docsEl.replaceChildren(docField(body.name, body.text));
-      renderStrategies();
-    });
+    document.querySelector("#index-btn").addEventListener("click", () => indexDocuments(true));
 
-    document.querySelector("#files").addEventListener("change", async (event) => {
-      const files = [...event.target.files];
-      if (!files.length) return;
-      state.mode = files.length > 1 ? "multiple" : state.mode;
-      document.querySelectorAll("#modes button").forEach((item) => {
-        item.classList.toggle("active", item.dataset.mode === state.mode);
-      });
-      const loaded = await Promise.all(files.slice(0, 8).map(async (file) => ({
-        name: file.name,
-        text: await file.text(),
-      })));
-      docsEl.replaceChildren();
-      loaded.forEach((doc) => docsEl.append(docField(doc.name, doc.text)));
-      if (state.mode === "multiple") state.strategy = "document";
-      renderStrategies();
+    document.querySelector("#clear-docs").addEventListener("click", async () => {
+      await fetch("/reset", { method: "POST" });
+      state.files = [];
+      state.indexedKey = "";
+      state.bestStrategy = "";
+      state.prompts = [];
+      state.last = null;
+      renderFiles();
+      renderPrompts();
+      answerEl.hidden = true;
+      scoreEl.hidden = true;
+      sourcesLabel.hidden = true;
+      sourcesEl.replaceChildren();
+      document.querySelector("#comparisons").replaceChildren();
+      document.querySelector("#index-results").hidden = true;
+      statusEl.textContent = "Documents, index, and scores cleared.";
+      await loadStrategies();
     });
-
-    document.querySelector("#index-btn").addEventListener("click", indexDocuments);
     document.querySelector("#ask-form").addEventListener("submit", (event) => {
       event.preventDefault();
       ask(questionEl.value.trim());
     });
-    document.querySelectorAll("[data-q]").forEach((button) => {
-      button.addEventListener("click", () => {
-        questionEl.value = button.dataset.q;
-        ask(button.dataset.q);
-      });
-    });
-
     document.querySelector("#compare").addEventListener("click", async () => {
-      const question = questionEl.value.trim();
+      const question = questionEl.value.trim() || state.prompts[0]?.question || "";
       if (!question) {
-        statusEl.textContent = "Enter a question before comparing strategies.";
+        statusEl.textContent = "Upload a document or type a question before comparing strategies.";
         return;
       }
+      questionEl.value = question;
       const ready = await indexDocuments();
       if (!ready) return;
       const button = document.querySelector("#compare");
@@ -438,7 +571,8 @@
       }
     });
 
-    renderDocs();
+    renderFiles();
+    renderPrompts();
     loadStrategies();
   </script>
 </body>

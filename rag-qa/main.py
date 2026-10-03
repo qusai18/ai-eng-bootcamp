@@ -1,3 +1,4 @@
+import io
 import json
 import os
 from contextlib import asynccontextmanager
@@ -6,7 +7,7 @@ from typing import Literal
 
 import numpy as np
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from openai import OpenAI, OpenAIError
 from pydantic import BaseModel, Field
@@ -20,8 +21,12 @@ load_dotenv(ROOT.parent / ".env")
 load_dotenv(ROOT / ".env")
 
 EMBED_MODEL = "text-embedding-3-small"
+EMBED_USD_PER_MILLION = 0.02
 CHAT_MODEL = "gpt-4o-mini"
 TOP_K = 3
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_EXTRACTED_CHARS = 40000
+ALLOWED_SUFFIXES = {".txt", ".pdf", ".docx", ".ppt", ".pptx"}
 ANSWER_PROMPT = (
     "Answer the question using ONLY the context below. "
     "If the context doesn't contain the answer, say so.\n\n"
@@ -31,9 +36,10 @@ ANSWER_PROMPT = (
 
 
 class Index:
-    def __init__(self, chunks: list[str], vectors: np.ndarray) -> None:
+    def __init__(self, chunks: list[str], vectors: np.ndarray, tokens: int) -> None:
         self.chunks = chunks
         self.vectors = vectors
+        self.tokens = tokens
 
 
 class Store:
@@ -42,6 +48,7 @@ class Store:
         self.documents: list[tuple[str, str]] = []
         self.indexes: dict[str, Index] = {}
         self.ratings: list[dict[str, str | int]] = _load_ratings()
+        self.report: dict | None = None
 
 
 def _load_ratings() -> list[dict[str, str | int]]:
@@ -71,13 +78,36 @@ def _client() -> OpenAI:
     return OpenAI(api_key=api_key)
 
 
-def _embed(texts: list[str]) -> np.ndarray:
+def _embed(texts: list[str]) -> tuple[np.ndarray, int]:
     response = _client().embeddings.create(model=EMBED_MODEL, input=texts)
     ordered = sorted(response.data, key=lambda item: item.index)
     vectors = np.array([item.embedding for item in ordered], dtype=np.float32)
     norms = np.linalg.norm(vectors, axis=1, keepdims=True)
     norms[norms == 0] = 1
-    return vectors / norms
+    tokens = int(response.usage.total_tokens or 0) if response.usage else 0
+    return vectors / norms, tokens
+
+
+def _chunk_performance(chunks: list[str]) -> float:
+    """Score how usable the chunks are, from 0 to 100.
+
+    A chunk scores well when its text is in the 200-1200 character range
+    and the average length stays near 600 characters.
+    """
+    if not chunks:
+        return 0.0
+    lengths: list[int] = []
+    for chunk in chunks:
+        body = chunk.split("\n", 1)[-1] if chunk.startswith("Source:") else chunk
+        lengths.append(len(body.strip()))
+    in_range = sum(1 for length in lengths if 200 <= length <= 1200) / len(lengths)
+    average = sum(lengths) / len(lengths)
+    centered = max(0.0, 1 - abs(average - 600) / 800)
+    return round(100 * (0.65 * in_range + 0.35 * centered), 1)
+
+
+def _cost(tokens: int) -> float:
+    return round(tokens * EMBED_USD_PER_MILLION / 1_000_000, 8)
 
 
 def _require_strategy(strategy: str) -> str:
@@ -94,8 +124,13 @@ def ensure_index(strategy: str) -> Index:
     if cached is not None:
         return cached
 
+    spent = 0
+
     def embed_sentences(sentences: list[str]) -> np.ndarray:
-        return _embed(sentences)
+        nonlocal spent
+        vectors, tokens = _embed(sentences)
+        spent += tokens
+        return vectors
 
     try:
         chunks = chunk_documents(
@@ -109,10 +144,11 @@ def ensure_index(strategy: str) -> Index:
     if not chunks:
         raise HTTPException(status_code=400, detail="That document produced no chunks")
     try:
-        vectors = _embed(chunks)
+        vectors, tokens = _embed(chunks)
+        spent += tokens
     except OpenAIError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    index = Index(chunks, vectors)
+    index = Index(chunks, vectors, spent)
     store.indexes[strategy] = index
     return index
 
@@ -120,7 +156,8 @@ def ensure_index(strategy: str) -> Index:
 def retrieve(question: str, strategy: str) -> list[str]:
     index = ensure_index(strategy)
     try:
-        query = _embed([question])[0]
+        query_vectors, _tokens = _embed([question])
+        query = query_vectors[0]
     except OpenAIError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     scores = index.vectors @ query
@@ -199,17 +236,6 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-class DocumentIn(BaseModel):
-    name: str = Field(default="document", max_length=120)
-    text: str = Field(min_length=1, max_length=20000)
-
-
-class IngestRequest(BaseModel):
-    mode: Literal["single", "multiple"]
-    documents: list[DocumentIn] = Field(min_length=1, max_length=8)
-    strategy: str
-
-
 class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     strategy: str
@@ -264,23 +290,201 @@ def strategies() -> dict:
     }
 
 
-@app.post("/documents")
-def ingest(body: IngestRequest) -> dict:
-    strategy = _require_strategy(body.strategy)
-    if body.mode == "single" and len(body.documents) != 1:
-        raise HTTPException(status_code=400, detail="Single-document mode accepts one document")
-    store.mode = body.mode
-    store.documents = [(item.name.strip() or "document", item.text.strip()) for item in body.documents]
+def _extract_text(name: str, data: bytes) -> str:
+    suffix = Path(name).suffix.lower()
+    if suffix not in ALLOWED_SUFFIXES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{name} must be a TXT, PDF, DOCX, PPT, or PPTX file",
+        )
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail=f"{name} is larger than 10 MB")
+    try:
+        if suffix == ".txt":
+            text = data.decode("utf-8", errors="replace")
+        elif suffix == ".pdf":
+            from pypdf import PdfReader
+
+            reader = PdfReader(io.BytesIO(data))
+            text = "\n\n".join(page.extract_text() or "" for page in reader.pages)
+        elif suffix == ".docx":
+            from docx import Document
+
+            document = Document(io.BytesIO(data))
+            parts = [paragraph.text.strip() for paragraph in document.paragraphs if paragraph.text.strip()]
+            for table in document.tables:
+                for row in table.rows:
+                    cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                    if cells:
+                        parts.append(" | ".join(cells))
+            text = "\n".join(parts)
+        else:
+            if suffix == ".ppt" and not data.startswith(b"PK"):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{name} is an older PowerPoint file. Save it as .pptx and upload that.",
+                )
+            from pptx import Presentation
+
+            presentation = Presentation(io.BytesIO(data))
+            parts: list[str] = []
+            for slide in presentation.slides:
+                for shape in slide.shapes:
+                    if getattr(shape, "has_text_frame", False) and shape.text_frame.text.strip():
+                        parts.append(shape.text_frame.text.strip())
+                if slide.has_notes_slide:
+                    notes = slide.notes_slide.notes_text_frame.text.strip()
+                    if notes:
+                        parts.append(notes)
+            text = "\n\n".join(parts)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not read {name}: {exc}") from exc
+
+    text = text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail=f"No text found in {name}")
+    return text[:MAX_EXTRACTED_CHARS]
+
+
+def _fallback_prompts(documents: list[tuple[str, str]]) -> list[dict[str, str]]:
+    prompts: list[dict[str, str]] = []
+    for _name, text in documents:
+        for raw in text.splitlines():
+            line = raw.strip().lstrip("#").strip(" -")
+            if len(line) < 12 or len(line) > 90:
+                continue
+            label = line if len(line) <= 32 else f"{line[:29].rstrip()}…"
+            prompts.append({"label": label, "question": f"What does the document say about {line}?"})
+            if len(prompts) == 3:
+                return prompts
+    if not documents:
+        return []
+    title = Path(documents[0][0]).stem.replace("_", " ")
+    return [{"label": title[:32] or "Document", "question": f"What is {title or 'this document'} about?"}]
+
+
+def suggest_prompts(documents: list[tuple[str, str]]) -> list[dict[str, str]]:
+    excerpts = "\n\n".join(f"# {name}\n{text[:3500]}" for name, text in documents)[:9000]
+    instruction = (
+        "Write exactly 3 questions a reader could answer from the documents below. "
+        'Return JSON: {"prompts":[{"label":"2 to 4 words","question":"one sentence"}]}. '
+        "Use only topics that appear in the text.\n\n"
+        f"{excerpts}"
+    )
+    try:
+        completion = _client().chat.completions.create(
+            model=CHAT_MODEL,
+            temperature=0,
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": instruction}],
+        )
+        payload = json.loads(completion.choices[0].message.content or "{}")
+        raw = payload.get("prompts") if isinstance(payload, dict) else None
+    except (OpenAIError, json.JSONDecodeError, AttributeError, TypeError):
+        return _fallback_prompts(documents)
+    prompts: list[dict[str, str]] = []
+    if isinstance(raw, list):
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            question = str(item.get("question") or "").strip()
+            label = str(item.get("label") or "").strip()
+            if not question:
+                continue
+            prompts.append({"label": (label or question)[:40], "question": question[:300]})
+            if len(prompts) == 3:
+                break
+    return prompts or _fallback_prompts(documents)
+
+
+def _index_documents(mode: str, strategy: str, documents: list[tuple[str, str]]) -> dict:
+    if mode == "single" and len(documents) != 1:
+        raise HTTPException(status_code=400, detail="Single document accepts one file")
+    if not documents or len(documents) > 8:
+        raise HTTPException(status_code=400, detail="Upload between 1 and 8 files")
+    store.mode = mode
+    store.documents = documents
     store.indexes.clear()
-    index = ensure_index(strategy)
+    rows = []
+    for key in STRATEGIES:
+        index = ensure_index(key)
+        rows.append(
+            {
+                "strategy": key,
+                "name": STRATEGIES[key]["name"],
+                "chunks": len(index.chunks),
+                "tokens": index.tokens,
+                "cost_usd": _cost(index.tokens),
+                "performance": _chunk_performance(index.chunks),
+            }
+        )
+    best = max(rows, key=lambda row: (float(row["performance"]), -int(row["tokens"])))
+    total_tokens = sum(int(row["tokens"]) for row in rows)
+    report = {
+        "model": EMBED_MODEL,
+        "price_per_million": EMBED_USD_PER_MILLION,
+        "rows": rows,
+        "total_tokens": total_tokens,
+        "total_cost_usd": _cost(total_tokens),
+        "best_strategy": best["strategy"],
+        "best_name": best["name"],
+        "best_performance": best["performance"],
+        "best_tokens": best["tokens"],
+        "best_cost_usd": best["cost_usd"],
+    }
+    store.report = report
+    chosen = store.indexes[strategy]
     return {
         "mode": store.mode,
         "strategy": strategy,
         "documents": [name for name, _text in store.documents],
-        "chunk_count": len(index.chunks),
-        "chunks": [chunk[:280] for chunk in index.chunks[:8]],
+        "chunk_count": len(chosen.chunks),
+        "chunks": [chunk[:280] for chunk in chosen.chunks[:8]],
         "recommendation": recommendation(),
+        "report": report,
     }
+
+
+@app.post("/reset")
+def reset() -> dict[str, str]:
+    store.mode = "single"
+    store.documents = []
+    store.indexes.clear()
+    store.ratings = []
+    store.report = None
+    _save_ratings()
+    return {"status": "cleared"}
+
+
+@app.post("/prompts")
+async def prompts(files: list[UploadFile] = File(...)) -> dict:
+    if not files or len(files) > 8:
+        raise HTTPException(status_code=400, detail="Upload between 1 and 8 files")
+    documents: list[tuple[str, str]] = []
+    for upload in files:
+        name = Path(upload.filename or "document").name
+        data = await upload.read()
+        documents.append((name, _extract_text(name, data)))
+    return {"prompts": suggest_prompts(documents)}
+
+
+@app.post("/documents")
+async def ingest(
+    mode: Literal["single", "multiple"] = Form(...),
+    strategy: str = Form(...),
+    files: list[UploadFile] = File(...),
+) -> dict:
+    chosen = _require_strategy(strategy)
+    if mode == "single" and len(files) != 1:
+        raise HTTPException(status_code=400, detail="Single document accepts one file")
+    documents: list[tuple[str, str]] = []
+    for upload in files:
+        name = Path(upload.filename or "document").name
+        data = await upload.read()
+        documents.append((name, _extract_text(name, data)))
+    return _index_documents(mode, chosen, documents)
 
 
 @app.post("/ask", response_model=AskResponse)
