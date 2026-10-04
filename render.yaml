@@ -66,3 +66,11 @@ services:
     envVars:
       - key: OPENAI_API_KEY
         sync: false
+
+  - type: web
+    name: agentic-memory-lab
+    runtime: docker
+    plan: free
+    dockerfilePath: ./agentic-memory/demo-ui/Dockerfile
+    dockerContext: ./agentic-memory/demo-ui
+    healthCheckPath: /
