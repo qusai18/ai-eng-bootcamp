@@ -42,3 +42,35 @@ def text_of(doc: dict, limit: int = 60000) -> tuple[str, bool]:
 
 def source_header(doc: dict) -> str:
     return f"Source document id: {doc['id']}\nSource document name: {doc['name']}\n\n"
+
+
+def graph_of(hyperedges: list[dict], limit_edges: int = 8, limit_nodes: int = 18) -> dict:
+    """Normalize hyperedges into the shape the Ask view draws."""
+    nodes = []
+    seen: dict[str, str] = {}
+    edges = []
+    for edge in hyperedges:
+        members = []
+        for name in edge.get("members") or []:
+            label = " ".join(str(name).split()).strip(" \"'")
+            if len(label) < 2:
+                continue
+            key = label.lower()
+            if key not in seen:
+                if len(seen) >= limit_nodes:
+                    continue
+                seen[key] = f"n{len(seen)}"
+                nodes.append({"id": seen[key], "label": label[:48]})
+            if seen[key] not in members:
+                members.append(seen[key])
+        if len(members) < 2:
+            continue
+        edges.append({
+            "id": f"e{len(edges)}",
+            "label": " ".join(str(edge.get("label") or "relation").split())[:90],
+            "members": members,
+        })
+        if len(edges) >= limit_edges:
+            break
+    used = {member for edge in edges for member in edge["members"]}
+    return {"nodes": [node for node in nodes if node["id"] in used], "hyperedges": edges}

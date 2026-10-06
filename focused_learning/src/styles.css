@@ -425,7 +425,25 @@ mark.flash{animation:flash 1.1s}
 .ask-form{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin-top:16px}
 .ask-form textarea{width:min(100%,720px);resize:vertical}
 .ask-error{margin-top:14px;color:#9b2c2c;font-size:13px;max-width:72ch}
+.ask-view{max-width:1180px}
+.ask-split{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(280px,.95fr);gap:28px;align-items:start}
 .ask-answer p{font-size:16px;line-height:1.7;max-width:72ch;white-space:pre-wrap}
+.hypergraph{margin:0;min-width:0}
+.hcap{margin:0 0 8px;font-size:12px;line-height:1.5;color:var(--ink-3)}
+.hsvg{width:100%;height:auto;display:block;background:#fff;border:1px solid var(--line)}
+.h-region{opacity:.34;cursor:pointer}
+.h-node circle{fill:#fff;stroke:#17343d;stroke-width:1.6}
+.h-node text{font-size:11px;fill:#17343d;pointer-events:none}
+.hlegend{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.hlegend li{display:flex;gap:8px;align-items:flex-start;font-size:12px;line-height:1.4;color:var(--ink-2);cursor:pointer}
+.hlegend i{width:12px;height:12px;margin-top:3px;flex:none;border-radius:2px}
+.hypergraph.is-hot .h-region{opacity:.12}
+.hypergraph.is-hot .h-node{opacity:.28}
+.hypergraph.is-hot .h-region.on{opacity:.62}
+.hypergraph.is-hot .h-node.on{opacity:1}
+.hypergraph.is-hot .hlegend li{opacity:.45}
+.hypergraph.is-hot .hlegend li.on{opacity:1;color:var(--ink)}
+@media(max-width:900px){.ask-split{grid-template-columns:1fr}}
 .ground{display:flex;flex-direction:column;gap:12px}
 .ground-card{background:#fff;border:1px solid var(--line);padding:16px 18px}
 .ground-kind{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--acc);font-weight:700}

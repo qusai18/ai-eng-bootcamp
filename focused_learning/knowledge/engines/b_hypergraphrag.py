@@ -1,3 +1,6 @@
+import csv
+import io
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -8,9 +11,28 @@ for _stream in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
-from knowledge.engines.common import source_header, text_of
+from knowledge.engines.common import graph_of, source_header, text_of
 
 VENDOR = Path(__file__).resolve().parents[1] / "vendor" / "HyperGraphRAG"
+_RELATIONS = re.compile(r"-----Relationships-----\s*```csv\s*(.*?)```", re.S)
+
+
+def _graph(detail: str) -> dict:
+    match = _RELATIONS.search(detail or "")
+    if not match:
+        return {"nodes": [], "hyperedges": []}
+    rows = csv.DictReader(io.StringIO(match.group(1).strip()))
+    hyperedges = []
+    for row in rows:
+        members = []
+        for part in (row.get("related_entities") or "").split("|"):
+            name = part.strip().strip('"').replace("_", " ")
+            if name:
+                members.append(name)
+        label = (row.get("hyperedge") or "relation").strip()
+        if label and len(members) >= 2:
+            hyperedges.append({"label": label, "members": members[:8]})
+    return graph_of(hyperedges)
 
 
 class HyperGraphRag:
@@ -60,7 +82,7 @@ class HyperGraphRag:
                 "detail": detail[:4000],
                 "source": doc_id or "",
             })
-        return {"answer": str(answer or ""), "grounding": grounding}
+        return {"answer": str(answer or ""), "grounding": grounding, "graph": _graph(detail)}
 
     def _import(self):
         root = str(VENDOR)

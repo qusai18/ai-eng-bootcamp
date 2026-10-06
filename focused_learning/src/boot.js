@@ -775,7 +775,7 @@ function graphModelHTML(pats) {
 /* ============================== STATE & ROUTER ============================== */
 const state = { view: 'home', docId: null, q: '', atlasCat: 'all', focusPid: null,
   recall: { scope: 'all', session: null, autostart: false },
-  ask: { engine: 'a', scope: 'all', question: '', status: null, answer: '', grounding: [], sources: [], error: '', busy: '' } };
+  ask: { engine: 'a', scope: 'all', question: '', status: null, answer: '', grounding: [], graph: null, sources: [], error: '', busy: '' } };
 
 function render() {
   const m = $('#main');
@@ -1402,6 +1402,151 @@ function apiError(data, fallback) {
   if (Array.isArray(data.detail)) return data.detail.map(d => d.msg || '').filter(Boolean).join(' ') || fallback;
   return data.error || fallback;
 }
+const HYPER_COLORS = ['#006d77', '#2f7d32', '#c47b2b', '#9b3d6b', '#3d5a80', '#6b5b3a'];
+function hypergraphHTML(graph) {
+  const edges = (graph && graph.hyperedges) || [];
+  const rawNodes = (graph && graph.nodes) || [];
+  if (!edges.length || rawNodes.length < 2) return '';
+  const W = 640, H = 420;
+  const nodes = rawNodes.map(n => ({ id: n.id, label: n.label || n.id, x: 0, y: 0, w: 0, vx: 0, vy: 0 }));
+  const byId = {};
+  nodes.forEach(n => { byId[n.id] = n; });
+  const laid = edges.map(e => ({
+    id: e.id,
+    label: e.label || 'hyperedge',
+    members: (e.members || []).map(id => byId[id]).filter(Boolean),
+  })).filter(e => e.members.length >= 2);
+  if (!laid.length) return '';
+  laid.forEach((e, i) => {
+    const ang = (i / laid.length) * Math.PI * 2 - Math.PI / 2;
+    const cx = W / 2 + Math.cos(ang) * 150;
+    const cy = H / 2 + Math.sin(ang) * 112;
+    e.members.forEach((n, j) => {
+      const a = (j / e.members.length) * Math.PI * 2;
+      n.x += cx + Math.cos(a) * 58;
+      n.y += cy + Math.sin(a) * 46;
+      n.w += 1;
+    });
+  });
+  nodes.forEach(n => {
+    if (!n.w) { n.x = W / 2; n.y = H / 2; }
+    else { n.x /= n.w; n.y /= n.w; }
+  });
+  for (let step = 0; step < 70; step++) {
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        let dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y;
+        let d2 = dx * dx + dy * dy; if (d2 < 1) d2 = 1;
+        const d = Math.sqrt(d2), f = 2200 / d2;
+        dx /= d; dy /= d;
+        nodes[i].vx += dx * f; nodes[i].vy += dy * f;
+        nodes[j].vx -= dx * f; nodes[j].vy -= dy * f;
+      }
+    }
+    laid.forEach(e => {
+      const cx = e.members.reduce((s, n) => s + n.x, 0) / e.members.length;
+      const cy = e.members.reduce((s, n) => s + n.y, 0) / e.members.length;
+      e.members.forEach(n => {
+        n.vx += (cx - n.x) * 0.035;
+        n.vy += (cy - n.y) * 0.035;
+      });
+    });
+    nodes.forEach(n => {
+      n.vx += (W / 2 - n.x) * 0.004;
+      n.vy += (H / 2 - n.y) * 0.004;
+      n.vx *= 0.82; n.vy *= 0.82;
+      n.x = Math.max(78, Math.min(W - 78, n.x + n.vx));
+      n.y = Math.max(36, Math.min(H - 48, n.y + n.vy));
+    });
+  }
+  const membership = {};
+  laid.forEach(e => e.members.forEach(n => {
+    membership[n.id] = membership[n.id] || [];
+    membership[n.id].push(e.id);
+  }));
+  let svg = '<svg class="hsvg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Hypergraph of the passages used for this answer">';
+  laid.forEach((e, i) => {
+    const color = HYPER_COLORS[i % HYPER_COLORS.length];
+    if (e.members.length === 2) {
+      const a = e.members[0], b = e.members[1];
+      svg += '<line class="h-region" data-hid="' + e.id + '" x1="' + a.x.toFixed(1) + '" y1="' + a.y.toFixed(1) + '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) + '" stroke="' + color + '" stroke-width="28" stroke-linecap="round"/>';
+    } else {
+      svg += '<path class="h-region" data-hid="' + e.id + '" d="' + hyperBlob(e.members) + '" fill="' + color + '"/>';
+    }
+  });
+  nodes.forEach(n => {
+    if (!membership[n.id]) return;
+    const lab = n.label.length > 22 ? n.label.slice(0, 21) + '…' : n.label;
+    svg += '<g class="h-node" data-edges="' + membership[n.id].join(' ') + '"><title>' + esc(n.label) + '</title>' +
+      '<circle cx="' + n.x.toFixed(1) + '" cy="' + n.y.toFixed(1) + '" r="7" />' +
+      '<text x="' + n.x.toFixed(1) + '" y="' + (n.y + 20).toFixed(1) + '" text-anchor="middle">' + esc(lab) + '</text></g>';
+  });
+  svg += '</svg>';
+  const legend = laid.map((e, i) =>
+    '<li data-hid="' + e.id + '"><i style="background:' + HYPER_COLORS[i % HYPER_COLORS.length] + '"></i><span>' + esc(e.label) + '</span></li>'
+  ).join('');
+  return '<figure class="hypergraph"><div class="sec-head"><span class="sec-title">Hypergraph</span><span class="rule"></span></div>' +
+    '<p class="hcap">Each shaded region joins the concepts in one hyperedge from this answer.</p>' +
+    svg + '<ol class="hlegend">' + legend + '</ol></figure>';
+}
+function hyperBlob(members) {
+  const hull = convexHull(members.map(n => ({ x: n.x, y: n.y })));
+  const cx = hull.reduce((s, p) => s + p.x, 0) / hull.length;
+  const cy = hull.reduce((s, p) => s + p.y, 0) / hull.length;
+  const grown = hull.map(p => {
+    const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1;
+    return { x: p.x + dx / d * 28, y: p.y + dy / d * 24 };
+  });
+  const n = grown.length;
+  let d = '';
+  for (let i = 0; i < n; i++) {
+    const prev = grown[(i - 1 + n) % n], cur = grown[i], next = grown[(i + 1) % n];
+    const m1x = (prev.x + cur.x) / 2, m1y = (prev.y + cur.y) / 2;
+    const m2x = (cur.x + next.x) / 2, m2y = (cur.y + next.y) / 2;
+    if (i === 0) d += 'M ' + m1x.toFixed(1) + ' ' + m1y.toFixed(1) + ' ';
+    d += 'Q ' + cur.x.toFixed(1) + ' ' + cur.y.toFixed(1) + ' ' + m2x.toFixed(1) + ' ' + m2y.toFixed(1) + ' ';
+  }
+  return d + ' Z';
+}
+function convexHull(points) {
+  const pts = points.slice().sort((a, b) => a.x - b.x || a.y - b.y);
+  if (pts.length < 3) return pts;
+  const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const lower = [];
+  pts.forEach(p => {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+    lower.push(p);
+  });
+  const upper = [];
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const p = pts[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  lower.pop(); upper.pop();
+  return lower.concat(upper);
+}
+function bindHypergraph() {
+  const fig = document.querySelector('.hypergraph');
+  if (!fig) return;
+  const paint = id => {
+    fig.classList.toggle('is-hot', !!id);
+    fig.querySelectorAll('[data-hid]').forEach(el => el.classList.toggle('on', el.dataset.hid === id));
+    fig.querySelectorAll('.h-node').forEach(el => {
+      const ids = (el.dataset.edges || '').split(' ');
+      el.classList.toggle('on', !!id && ids.indexOf(id) !== -1);
+    });
+  };
+  fig.addEventListener('mouseover', e => {
+    const hit = e.target.closest('[data-hid]');
+    paint(hit ? hit.dataset.hid : '');
+  });
+  fig.addEventListener('mouseleave', () => paint(''));
+  fig.addEventListener('click', e => {
+    const hit = e.target.closest('[data-hid]');
+    paint(hit ? hit.dataset.hid : '');
+  });
+}
 function viewAsk() {
   const row = askEngineState();
   const indexing = state.ask.busy === 'index' || row.state === 'indexing';
@@ -1414,6 +1559,9 @@ function viewAsk() {
     '<article class="ground-card"><div class="ground-kind">' + esc(g.kind || 'evidence') + (g.source ? ' \u00B7 ' + esc(g.source) : '') + '</div><h3>' + esc(g.label || '') + '</h3>' +
     (g.detail ? '<p>' + esc(g.detail) + '</p>' : '') + '</article>').join('');
   const sources = (state.ask.sources || []).map(s => '<span class="sig-chip">' + esc(s.name) + '</span>').join('');
+  const result = state.ask.answer
+    ? '<div class="ask-split"><div class="ask-answer"><div class="sec-head"><span class="sec-title">Answer</span><span class="rule"></span></div><p>' + esc(state.ask.answer) + '</p></div>' + hypergraphHTML(state.ask.graph) + '</div>'
+    : '';
   return '<div class="view ask-view"><div class="kicker">Knowledge answers</div><h1 class="title">Ask the knowledge base.</h1>' +
     '<p class="ask-lead">Three hypergraph engines answer from the documents you have captured. Index an engine, then ask.</p>' +
     '<div class="engine-row" role="tablist">' + engines + '</div>' +
@@ -1423,7 +1571,7 @@ function viewAsk() {
     '<form class="ask-form" id="askForm"><textarea id="askQ" rows="3" placeholder="What do these documents say?">' + esc(state.ask.question) + '</textarea>' +
     '<button class="btn primary" id="askSend" type="submit"' + (row.state !== 'ready' || state.ask.busy === 'ask' ? ' disabled' : '') + '>' + (state.ask.busy === 'ask' ? 'Asking\u2026' : 'Ask') + '</button></form>' +
     (state.ask.error ? '<p class="ask-error">' + esc(state.ask.error) + '</p>' : '') +
-    (state.ask.answer ? '<div class="ask-answer"><div class="sec-head"><span class="sec-title">Answer</span><span class="rule"></span></div><p>' + esc(state.ask.answer) + '</p></div>' : '') +
+    result +
     (sources ? '<div class="radar-row">' + sources + '</div>' : '') +
     (ground ? '<div class="sec-head"><span class="sec-title">Grounding</span><span class="rule"></span></div><div class="ground">' + ground + '</div>' : '') +
     '</div>';
@@ -1433,6 +1581,7 @@ function bindAsk() {
     state.ask.engine = b.dataset.engine;
     state.ask.answer = '';
     state.ask.grounding = [];
+    state.ask.graph = null;
     state.ask.sources = [];
     state.ask.error = '';
     render();
@@ -1441,6 +1590,7 @@ function bindAsk() {
   $('#askQ').addEventListener('input', e => { state.ask.question = e.target.value; });
   $('#askIndex').onclick = indexAsk;
   $('#askForm').onsubmit = e => { e.preventDefault(); askQuestion(); };
+  bindHypergraph();
   refreshAskStatus();
 }
 async function refreshAskStatus() {
@@ -1472,6 +1622,7 @@ async function indexAsk() {
   state.ask.error = '';
   state.ask.answer = '';
   state.ask.grounding = [];
+  state.ask.graph = null;
   state.ask.sources = [];
   render();
   try {
@@ -1509,6 +1660,7 @@ async function askQuestion() {
     if (!r.ok) throw new Error(apiError(data, 'Ask failed'));
     state.ask.answer = data.answer || '';
     state.ask.grounding = data.grounding || [];
+    state.ask.graph = data.graph || null;
     state.ask.sources = data.sources || [];
   } catch (err) {
     state.ask.error = err.message || String(err);

@@ -2,7 +2,7 @@ import os
 import shutil
 from pathlib import Path
 
-from knowledge.engines.common import as_data, call_with, source_header, text_of
+from knowledge.engines.common import as_data, call_with, graph_of, source_header, text_of
 
 TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "architecture_hypergraph.yaml"
 
@@ -65,7 +65,7 @@ class HyperExtract:
         reply = call_with(ka.chat, question, top_k=8, **scope)
         answer = getattr(reply, "content", None) or str(reply)
         grounding = [_node_card(item) for item in nodes] + [_edge_card(item) for item in edges]
-        return {"answer": answer, "grounding": grounding}
+        return {"answer": answer, "grounding": grounding, "graph": _graph(nodes, edges)}
 
 
 def _split_search(found):
@@ -101,6 +101,40 @@ def _node_card(item) -> dict:
         "detail": _field(data, "description", "type"),
         "source": _field(data, "source", "source_id"),
     }
+
+
+def _members(item) -> list[str]:
+    data = as_data(item)
+    if not isinstance(data, dict):
+        return []
+    raw = data.get("participants") or data.get("members") or []
+    if isinstance(raw, str):
+        raw = [part.strip() for part in raw.split(",")]
+    return [str(part).strip() for part in raw if str(part).strip()]
+
+
+def _graph(nodes, edges) -> dict:
+    hyperedges = []
+    for item in edges:
+        data = as_data(item)
+        if isinstance(data, dict):
+            label = _field(data, "name", "type") or "relation"
+        else:
+            label = str(data)
+        members = _members(item)
+        if len(members) >= 2:
+            hyperedges.append({"label": label, "members": members})
+    if hyperedges:
+        return graph_of(hyperedges)
+    labels = []
+    for item in nodes:
+        data = as_data(item)
+        label = _field(data, "name", "entity_name") if isinstance(data, dict) else str(data)
+        if label:
+            labels.append(label)
+    if len(labels) < 2:
+        return {"nodes": [], "hyperedges": []}
+    return graph_of([{"label": "matched concepts", "members": labels[:8]}])
 
 
 def _edge_card(item) -> dict:

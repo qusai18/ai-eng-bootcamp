@@ -5,7 +5,7 @@ import sys
 import types
 from pathlib import Path
 
-from knowledge.engines.common import text_of
+from knowledge.engines.common import graph_of, text_of
 
 _PARSER = None
 _TOKEN = re.compile(r"[a-z0-9]{3,}")
@@ -85,6 +85,7 @@ class Hyperbase:
             return {
                 "answer": "The indexed semantic hyperedges do not mention that.",
                 "grounding": [],
+                "graph": {"nodes": [], "hyperedges": []},
             }
         from openai import OpenAI
 
@@ -116,7 +117,7 @@ class Hyperbase:
             }
             for row in picked
         ]
-        return {"answer": answer, "grounding": grounding}
+        return {"answer": answer, "grounding": grounding, "graph": _graph(picked)}
 
     def _parser(self):
         global _PARSER
@@ -125,6 +126,139 @@ class Hyperbase:
             from hyperbase import get_parser
             _PARSER = get_parser("alphabeta", lang="en")
         return _PARSER
+
+
+_SKIP = {"the", "a", "an", "from", "to", "of", "and", "or", "in", "on", "for", "with"}
+
+
+def _graph(rows: list[dict]) -> dict:
+    hyperedges = []
+    for row in rows:
+        found = _hyperedges(row.get("edge") or "")
+        if not found:
+            members: list[str] = []
+            tokens = _tokenize(row.get("edge") or "")
+            if tokens:
+                _concepts(_parse(tokens), members)
+            unique = []
+            for member in members:
+                if member not in unique:
+                    unique.append(member)
+            sentence = " ".join((row.get("sentence") or "").split())
+            if len(unique) >= 2:
+                found = [{"label": sentence[:90] or unique[0], "members": unique}]
+        hyperedges.extend(found)
+    return graph_of(hyperedges)
+
+
+def _tokenize(src: str) -> list[str]:
+    tokens = []
+    i = 0
+    while i < len(src):
+        if src[i].isspace():
+            i += 1
+            continue
+        if src[i] in "()":
+            tokens.append(src[i])
+            i += 1
+            continue
+        j = i
+        while j < len(src) and not src[j].isspace() and src[j] not in "()":
+            j += 1
+        tokens.append(src[i:j])
+        i = j
+    return tokens
+
+
+def _parse(tokens: list[str]):
+    def read(index: int):
+        if index >= len(tokens):
+            return "", index
+        if tokens[index] != "(":
+            return tokens[index], index + 1
+        index += 1
+        items = []
+        while index < len(tokens) and tokens[index] != ")":
+            node, index = read(index)
+            items.append(node)
+        return items, index + 1
+
+    tree, _index = read(0)
+    return tree
+
+
+def _atom(token: str):
+    if not isinstance(token, str) or "/" not in token:
+        return None
+    word, kind = token.split("/", 1)
+    if not kind or kind[0] not in "CPMB#":
+        return None
+    word = word.replace("%2e", "").strip("?+.").strip()
+    return word, kind
+
+
+def _concept_word(token: str):
+    atom = _atom(token) if isinstance(token, str) else None
+    if not atom or not atom[0] or not atom[1].startswith("C") or atom[1].startswith("Cd") or atom[0].lower() in _SKIP:
+        return None
+    return atom[0]
+
+
+def _concepts(tree, found: list[str]) -> None:
+    word = _concept_word(tree) if isinstance(tree, str) else None
+    if word:
+        found.append(word)
+        return
+    if not isinstance(tree, list) or not tree:
+        return
+    head = _atom(tree[0]) if isinstance(tree[0], str) else None
+    if head and head[1].startswith("B"):
+        words = []
+        grouped = True
+        for child in tree[1:]:
+            if isinstance(child, str):
+                word = _concept_word(child)
+                if word:
+                    words.append(word)
+                elif _atom(child) and _atom(child)[1].startswith("Cd"):
+                    continue
+                else:
+                    grouped = False
+                    break
+            else:
+                grouped = False
+                break
+        if grouped and len(words) >= 2:
+            found.append(" ".join(words))
+            return
+    for child in tree:
+        _concepts(child, found)
+
+
+def _walk(tree, found: list[dict]) -> None:
+    if not isinstance(tree, list) or not tree:
+        return
+    atom = _atom(tree[0]) if isinstance(tree[0], str) else None
+    if atom and atom[1].startswith("P"):
+        members: list[str] = []
+        _concepts(tree[1:], members)
+        unique = []
+        for member in members:
+            if member not in unique:
+                unique.append(member)
+        if len(unique) >= 2:
+            found.append({"label": atom[0], "members": unique})
+    for child in tree:
+        _walk(child, found)
+
+
+def _hyperedges(src: str) -> list[dict]:
+    tokens = _tokenize(src)
+    if not tokens:
+        return []
+    found: list[dict] = []
+    _walk(_parse(tokens), found)
+    return found
 
 
 def _rank(rows: list[dict], question: str, limit: int = 8) -> list[dict]:
