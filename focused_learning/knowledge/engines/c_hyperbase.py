@@ -93,21 +93,7 @@ class Hyperbase:
             f"Document: {row['name']}\nSentence: {row['sentence']}\nSemantic hyperedge: {row['edge']}"
             for row in picked
         )
-        reply = OpenAI().chat.completions.create(
-            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-            temperature=0,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Answer only from the supplied sentences and semantic hyperedges. "
-                        "If they do not contain the answer, say so."
-                    ),
-                },
-                {"role": "user", "content": f"{context}\n\nQuestion: {question}"},
-            ],
-        )
-        answer = reply.choices[0].message.content or ""
+        graph = _graph(picked)
         grounding = [
             {
                 "kind": "hyperedge",
@@ -117,7 +103,25 @@ class Hyperbase:
             }
             for row in picked
         ]
-        return {"answer": answer, "grounding": grounding, "graph": _graph(picked)}
+        try:
+            reply = OpenAI().chat.completions.create(
+                model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+                temperature=0,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Answer only from the supplied sentences and semantic hyperedges. "
+                            "If they do not contain the answer, say so."
+                        ),
+                    },
+                    {"role": "user", "content": f"{context}\n\nQuestion: {question}"},
+                ],
+            )
+            answer = reply.choices[0].message.content or ""
+        except Exception as exc:
+            answer = "The language model could not complete an answer. The hypergraph is the evidence that was retrieved.\n\n" + str(exc)
+        return {"answer": answer, "grounding": grounding, "graph": graph}
 
     def _parser(self):
         global _PARSER

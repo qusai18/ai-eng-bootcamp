@@ -1455,8 +1455,8 @@ function hypergraphHTML(graph) {
       n.vx += (W / 2 - n.x) * 0.004;
       n.vy += (H / 2 - n.y) * 0.004;
       n.vx *= 0.82; n.vy *= 0.82;
-      n.x = Math.max(78, Math.min(W - 78, n.x + n.vx));
-      n.y = Math.max(36, Math.min(H - 48, n.y + n.vy));
+      n.x = Math.max(120, Math.min(W - 120, n.x + n.vx));
+      n.y = Math.max(52, Math.min(H - 70, n.y + n.vy));
     });
   }
   const membership = {};
