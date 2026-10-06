@@ -774,7 +774,8 @@ function graphModelHTML(pats) {
 
 /* ============================== STATE & ROUTER ============================== */
 const state = { view: 'home', docId: null, q: '', atlasCat: 'all', focusPid: null,
-  recall: { scope: 'all', session: null, autostart: false } };
+  recall: { scope: 'all', session: null, autostart: false },
+  ask: { engine: 'a', scope: 'all', question: '', status: null, answer: '', grounding: [], sources: [], error: '', busy: '' } };
 
 function render() {
   const m = $('#main');
@@ -782,6 +783,7 @@ function render() {
   else if (state.view === 'doc') { m.innerHTML = viewDoc(state.docId); bindDoc(); }
   else if (state.view === 'atlas') { m.innerHTML = viewAtlas(); bindAtlas(); }
   else if (state.view === 'recall') { m.innerHTML = viewRecall(); bindRecall(); }
+  else if (state.view === 'ask') { m.innerHTML = viewAsk(); bindAsk(); }
   m.scrollTop = 0;
   renderSidebar();
 }
@@ -797,6 +799,7 @@ function renderSidebar() {
         '<button class="nav-item" data-nav="docs">' + ic('file', 14) + 'Documents<span class="cnt" id="cntDocs"></span></button>' +
         '<button class="nav-item" data-nav="atlas">' + ic('layers', 14) + 'Pattern atlas<span class="cnt" id="cntPatterns"></span></button>' +
         '<button class="nav-item" data-nav="recall">' + ic('refresh', 14) + 'Recall practice<span class="due" id="cntDue" hidden></span></button>' +
+        '<button class="nav-item" data-nav="ask">' + ic('chat', 14) + 'Ask</button>' +
       '</nav>' +
       '<div class="list-label">KNOWLEDGE BASE</div>' +
       '<div class="sb-list" id="docList"></div>' +
@@ -1359,6 +1362,165 @@ function openProcView(file) {
   };
 }
 
+/* ============================== ASK ============================== */
+const ASK_ENGINES = [
+  { id: 'a', mark: 'A', name: 'Hyper-Extract' },
+  { id: 'b', mark: 'B', name: 'HyperGraphRAG' },
+  { id: 'c', mark: 'C', name: 'Hyperbase' },
+];
+
+function clientId() {
+  const key = 'focusedlearning_client_id';
+  let id = '';
+  try { id = localStorage.getItem(key) || ''; } catch (e) {}
+  if (!/^[A-Za-z0-9-]{8,80}$/.test(id)) {
+    id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12));
+    try { localStorage.setItem(key, id); } catch (e) {}
+  }
+  return id;
+}
+function askEngineMeta() { return ASK_ENGINES.find(e => e.id === state.ask.engine) || ASK_ENGINES[0]; }
+function askEngineState() {
+  const row = state.ask.status && state.ask.status[state.ask.engine];
+  return row || { state: 'not_indexed', available: true };
+}
+function askStatusText() {
+  const meta = askEngineMeta();
+  const row = askEngineState();
+  if (row.available === false) return meta.name + ' is not available. ' + (row.detail || '');
+  if (row.state === 'ready') {
+    const extra = row.truncated ? ' Long documents were indexed from their first 60,000 characters.' : '';
+    return meta.name + ' is ready \u00B7 ' + (row.docs || 0) + ' document' + (row.docs === 1 ? '' : 's') + '.' + extra;
+  }
+  if (row.state === 'indexing' || state.ask.busy === 'index') return meta.name + ' is indexing the knowledge base.';
+  if (row.state === 'failed') return meta.name + ' failed. ' + (row.error || '');
+  return meta.name + ' is not indexed yet.';
+}
+function apiError(data, fallback) {
+  if (!data) return fallback;
+  if (typeof data.detail === 'string') return data.detail;
+  if (Array.isArray(data.detail)) return data.detail.map(d => d.msg || '').filter(Boolean).join(' ') || fallback;
+  return data.error || fallback;
+}
+function viewAsk() {
+  const row = askEngineState();
+  const indexing = state.ask.busy === 'index' || row.state === 'indexing';
+  const engines = ASK_ENGINES.map(e =>
+    '<button type="button" class="engine-btn' + (e.id === state.ask.engine ? ' on' : '') + '" data-engine="' + e.id + '"><b>' + e.mark + '</b><span>' + esc(e.name) + '</span></button>'
+  ).join('');
+  const scopeOpts = '<option value="all"' + (state.ask.scope === 'all' ? ' selected' : '') + '>All documents</option>' +
+    store.docs.map(d => '<option value="' + esc(d.id) + '"' + (state.ask.scope === d.id ? ' selected' : '') + '>' + esc(d.name) + '</option>').join('');
+  const ground = (state.ask.grounding || []).map(g =>
+    '<article class="ground-card"><div class="ground-kind">' + esc(g.kind || 'evidence') + (g.source ? ' \u00B7 ' + esc(g.source) : '') + '</div><h3>' + esc(g.label || '') + '</h3>' +
+    (g.detail ? '<p>' + esc(g.detail) + '</p>' : '') + '</article>').join('');
+  const sources = (state.ask.sources || []).map(s => '<span class="sig-chip">' + esc(s.name) + '</span>').join('');
+  return '<div class="view ask-view"><div class="kicker">Knowledge answers</div><h1 class="title">Ask the knowledge base.</h1>' +
+    '<p class="ask-lead">Three hypergraph engines answer from the documents you have captured. Index an engine, then ask.</p>' +
+    '<div class="engine-row" role="tablist">' + engines + '</div>' +
+    '<p class="ask-status" id="askStatus">' + esc(askStatusText()) + '</p>' +
+    '<div class="ask-bar"><select id="askScope" aria-label="Answer scope">' + scopeOpts + '</select>' +
+    '<button class="btn" id="askIndex" type="button"' + (!store.docs.length || indexing ? ' disabled' : '') + '>' + (indexing ? 'Indexing\u2026' : 'Index knowledge base') + '</button></div>' +
+    '<form class="ask-form" id="askForm"><textarea id="askQ" rows="3" placeholder="What do these documents say?">' + esc(state.ask.question) + '</textarea>' +
+    '<button class="btn primary" id="askSend" type="submit"' + (row.state !== 'ready' || state.ask.busy === 'ask' ? ' disabled' : '') + '>' + (state.ask.busy === 'ask' ? 'Asking\u2026' : 'Ask') + '</button></form>' +
+    (state.ask.error ? '<p class="ask-error">' + esc(state.ask.error) + '</p>' : '') +
+    (state.ask.answer ? '<div class="ask-answer"><div class="sec-head"><span class="sec-title">Answer</span><span class="rule"></span></div><p>' + esc(state.ask.answer) + '</p></div>' : '') +
+    (sources ? '<div class="radar-row">' + sources + '</div>' : '') +
+    (ground ? '<div class="sec-head"><span class="sec-title">Grounding</span><span class="rule"></span></div><div class="ground">' + ground + '</div>' : '') +
+    '</div>';
+}
+function bindAsk() {
+  document.querySelectorAll('.engine-btn').forEach(b => b.onclick = () => {
+    state.ask.engine = b.dataset.engine;
+    state.ask.answer = '';
+    state.ask.grounding = [];
+    state.ask.sources = [];
+    state.ask.error = '';
+    render();
+  });
+  $('#askScope').onchange = e => { state.ask.scope = e.target.value; };
+  $('#askQ').addEventListener('input', e => { state.ask.question = e.target.value; });
+  $('#askIndex').onclick = indexAsk;
+  $('#askForm').onsubmit = e => { e.preventDefault(); askQuestion(); };
+  refreshAskStatus();
+}
+async function refreshAskStatus() {
+  try {
+    const r = await fetch('/api/knowledge/status?clientId=' + encodeURIComponent(clientId()));
+    const data = await r.json();
+    if (!r.ok) throw new Error(apiError(data, 'Status failed'));
+    const previous = askEngineState().state;
+    state.ask.status = data.engines || {};
+    const row = askEngineState();
+    const settled = row.state === 'ready' || row.state === 'failed';
+    if (settled && (state.ask.busy === 'index' || previous !== row.state)) {
+      state.ask.busy = '';
+      if (row.state === 'failed') state.ask.error = row.error || 'Indexing failed';
+      if (state.view === 'ask') render();
+      return;
+    }
+    const el = $('#askStatus');
+    if (el) el.textContent = askStatusText();
+  } catch (e) {
+    const el = $('#askStatus');
+    if (el) el.textContent = 'Knowledge service is not running.';
+  }
+}
+async function indexAsk() {
+  const docs = store.docs.filter(d => d.text && String(d.text).trim()).map(d => ({ id: d.id, name: d.name, text: d.text }));
+  if (!docs.length) { toast('Capture a document with text before indexing.', 'error'); return; }
+  state.ask.busy = 'index';
+  state.ask.error = '';
+  state.ask.answer = '';
+  state.ask.grounding = [];
+  state.ask.sources = [];
+  render();
+  try {
+    const r = await fetch('/api/knowledge/index', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ engine: state.ask.engine, clientId: clientId(), docs }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(apiError(data, 'Index failed'));
+    toast('Indexing ' + askEngineMeta().name + '.');
+  } catch (err) {
+    state.ask.busy = '';
+    state.ask.error = err.message || String(err);
+    render();
+    toast(state.ask.error, 'error');
+  }
+}
+async function askQuestion() {
+  const question = ($('#askQ') && $('#askQ').value || state.ask.question || '').trim();
+  state.ask.question = question;
+  if (!question) return;
+  state.ask.busy = 'ask';
+  state.ask.error = '';
+  render();
+  try {
+    const body = { engine: state.ask.engine, clientId: clientId(), question };
+    if (state.ask.scope !== 'all') body.docId = state.ask.scope;
+    const r = await fetch('/api/knowledge/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(apiError(data, 'Ask failed'));
+    state.ask.answer = data.answer || '';
+    state.ask.grounding = data.grounding || [];
+    state.ask.sources = data.sources || [];
+  } catch (err) {
+    state.ask.error = err.message || String(err);
+    toast(state.ask.error, 'error');
+  }
+  state.ask.busy = '';
+  render();
+}
+setInterval(() => {
+  if (state.view === 'ask' && (state.ask.busy === 'index' || (askEngineState().state === 'indexing'))) refreshAskStatus();
+}, 2000);
+
 /* ============================== VIEWS ============================== */
 function viewHome() {
   const n = store.docs.length;
@@ -1377,7 +1539,7 @@ function viewHome() {
     '<section class="capture-card"><div class="capture-step">02 / Or explore a repository</div><label class="repo-label" for="ghInput">Learn from the source.</label>' +
     '<div class="gh-bar"><span class="gh-ic">' + ic('git',15) + '</span><input id="ghInput" placeholder="github.com/owner/repo" spellcheck="false" autocomplete="off"><button class="gh-btn" id="ghBtn">Analyze →</button></div>' +
     '<p class="gh-hint">Enter a public GitHub repository, folder, or file URL. We read its README and architecture documentation.</p></section></div>' +
-    '<p class="home-privacy">Your files are processed in your browser. Document readers and image recognition require internet access.</p>' +
+    '<p class="home-privacy">Files are read in your browser. Indexing for engines A or B sends document text to this app and to OpenAI. Engine C parses text on this app with spaCy, then sends only the matched hyperedges to OpenAI.</p>' +
     (recent.length ? '<div class="home-recent"><span>Recent sources</span>' + recent.map(d => '<button data-open="' + d.id + '">' + esc(d.name.length > 26 ? d.name.slice(0,26) + '...' : d.name) + ' · ' + d.analysis.patterns.length + ' patterns</button>').join('') + '</div>' : '') +
     '<div class="learning-benefits"><div><strong>See the patterns.</strong><p>Explore diagrams and evidence drawn from your source.</p></div><div><strong>Connect the ideas.</strong><p>Follow relationships, practical analogies, and further reading.</p></div><div><strong>Make it stick.</strong><p>Practice recall and return to the concepts that need attention.</p></div></div></div></div>';
 }

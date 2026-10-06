@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "start": "node server/index.js"
+    "start": "node server/start.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

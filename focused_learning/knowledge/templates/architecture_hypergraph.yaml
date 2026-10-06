@@ -1,0 +1,62 @@
+language: en
+
+name: Architecture hypergraph
+type: hypergraph
+tags: [architecture]
+
+description: 'Concepts in architecture notes and the facts that connect two or more of them.'
+
+output:
+  description: 'Concepts and the hyperedges that join them.'
+  entities:
+    description: 'A pattern, technology, component, or named concept.'
+    fields:
+    - name: name
+      type: str
+      description: 'Concept name as written in the source.'
+    - name: type
+      type: str
+      description: 'pattern, technology, component, or concept.'
+    - name: description
+      type: str
+      description: 'What this concept is in the source.'
+      required: false
+  relations:
+    description: 'A fact that connects two or more concepts.'
+    fields:
+    - name: name
+      type: str
+      description: 'Short name of the fact.'
+    - name: type
+      type: str
+      description: 'uses, depends-on, contrasts, contains, or causes.'
+    - name: participants
+      type: list
+      description: 'Names of the concepts this fact connects. At least two.'
+    - name: description
+      type: str
+      description: 'The fact as stated in the source.'
+      required: false
+
+guideline:
+  target: 'Extract architecture concepts and facts that connect two or more concepts.'
+  rules_for_entities:
+  - 'Extract patterns, technologies, components, and named concepts.'
+  - 'Keep the same name for the same concept.'
+  - 'Do not extract pronouns or filler words.'
+  rules_for_relations:
+  - 'Create a hyperedge only when the text states that two or more concepts participate in the same fact.'
+  - 'State only facts present in the text.'
+  - 'Merge repeated mentions of the same fact into one hyperedge.'
+
+identifiers:
+  entity_id: name
+  relation_id: '{name}|{type}'
+  relation_members: participants
+
+options:
+  extraction_mode: two_stage
+
+display:
+  entity_label: '{name} ({type})'
+  relation_label: '{name}'

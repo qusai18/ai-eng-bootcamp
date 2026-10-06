@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { loadEnv, openAiConfigured } from './env.js';
 import { mountGithub } from './github.js';
+import { mountKnowledge } from './knowledge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, '..');
@@ -17,6 +18,7 @@ app.get('/health', (_req, res) => {
 });
 
 mountGithub(app);
+mountKnowledge(app);
 
 const dist = path.join(appRoot, 'dist');
 app.use(express.static(dist));
