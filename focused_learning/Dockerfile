@@ -11,11 +11,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 python3
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY knowledge/requirements.txt knowledge/requirements.txt
-# Torch is installed by the parsers, then imported by spaCy. Leaving it
-# installed makes the 512 MB instance get killed as soon as Ask starts.
+# The AlphaBeta package depends on torch. spaCy imports torch whenever it is
+# installed, and that is what gets the 512 MB instance killed. Install the
+# parser without that dependency and tag atoms with spaCy instead.
 RUN python3 -m venv /opt/venv \
-    && /opt/venv/bin/pip install --no-cache-dir -r knowledge/requirements.txt \
-    && /opt/venv/bin/pip uninstall -y torch \
+    && grep -v '^hyperbase-parser-ab' knowledge/requirements.txt > /tmp/reqs.txt \
+    && /opt/venv/bin/pip install --no-cache-dir -r /tmp/reqs.txt \
+    && /opt/venv/bin/pip install --no-cache-dir --no-deps hyperbase-parser-ab \
+    && /opt/venv/bin/pip install --no-cache-dir 'scikit-learn>=1.3' 'spacy>=3.8' \
     && /opt/venv/bin/python -m spacy download en_core_web_sm
 ENV PATH="/opt/venv/bin:$PATH"
 ENV PYTHON="/opt/venv/bin/python"
