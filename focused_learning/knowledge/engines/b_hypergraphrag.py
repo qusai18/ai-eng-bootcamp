@@ -17,7 +17,8 @@ class HyperGraphRag:
     name = "HyperGraphRAG"
 
     def probe(self) -> None:
-        self._import()
+        if not VENDOR.exists():
+            raise RuntimeError(f"HyperGraphRAG vendor is missing at {VENDOR}")
 
     def index(self, folder: Path, docs: list[dict]) -> dict:
         HyperGraphRAG, _QueryParam = self._import()

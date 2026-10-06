@@ -20,7 +20,8 @@ class HyperExtract:
     name = "Hyper-Extract"
 
     def probe(self) -> None:
-        import hyperextract  # noqa: F401
+        if not os.environ.get("OPENAI_API_KEY"):
+            raise RuntimeError("OPENAI_API_KEY is not set")
 
     def index(self, folder: Path, docs: list[dict]) -> dict:
         from hyperextract import Template

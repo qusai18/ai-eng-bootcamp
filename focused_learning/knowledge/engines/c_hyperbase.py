@@ -1,6 +1,8 @@
 import json
 import os
 import re
+import sys
+import types
 from pathlib import Path
 
 from knowledge.engines.common import text_of
@@ -15,11 +17,40 @@ _STOP = {
 }
 
 
+def _use_light_atomizer() -> None:
+    """Keep AlphaBeta on spaCy rules without the PyTorch atom classifier.
+
+    The published atomizer imports torch and a Hugging Face model. Loading that
+    next to Node exceeds the 512 MB instance and the kernel stops the service.
+    Verbs are still marked as predicates by the parser after this tagger runs.
+    """
+    name = "hyperbase_parser_ab.atomizer"
+    if getattr(sys.modules.get(name), "_focused_light", False):
+        return
+
+    module = types.ModuleType(name)
+    module._focused_light = True
+
+    class Atomizer:
+        def __init__(self, model_path: str | None = None) -> None:
+            self.model_path = model_path or ""
+
+        def atomize(self, sentence: str, tokens: list[str] | None = None) -> list[tuple[str, str]]:
+            words = tokens if tokens is not None else sentence.split()
+            return [(word, "C") for word in words]
+
+    module.Atomizer = Atomizer
+    sys.modules[name] = module
+
+
 class Hyperbase:
     name = "Hyperbase"
 
     def probe(self) -> None:
-        self._parser()
+        import spacy
+
+        if not spacy.util.is_package("en_core_web_sm"):
+            raise RuntimeError("spaCy model en_core_web_sm is not installed")
 
     def index(self, folder: Path, docs: list[dict]) -> dict:
         parser = self._parser()
@@ -90,6 +121,7 @@ class Hyperbase:
     def _parser(self):
         global _PARSER
         if _PARSER is None:
+            _use_light_atomizer()
             from hyperbase import get_parser
             _PARSER = get_parser("alphabeta", lang="en")
         return _PARSER

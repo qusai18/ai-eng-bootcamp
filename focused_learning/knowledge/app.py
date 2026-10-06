@@ -18,7 +18,6 @@ from knowledge.store import (
 app = FastAPI()
 _jobs: set[tuple[str, str]] = set()
 _jobs_lock = threading.Lock()
-_probe_cache: dict[str, dict] = {}
 
 
 class DocIn(BaseModel):
@@ -50,19 +49,6 @@ def _engine(name: str):
     return ENGINES[name]
 
 
-def _availability(name: str) -> dict:
-    cached = _probe_cache.get(name)
-    if cached:
-        return cached
-    try:
-        ENGINES[name].probe()
-        result = {"available": True, "detail": None}
-    except Exception as exc:
-        result = {"available": False, "detail": str(exc)}
-    _probe_cache[name] = result
-    return result
-
-
 @app.get("/health")
 def health():
     return {"ok": True, "openai": bool(os.environ.get("OPENAI_API_KEY"))}
@@ -74,9 +60,7 @@ def status(clientId: str):
         saved = read_status(clientId)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    engines = {}
-    for name in ENGINE_IDS:
-        engines[name] = {**saved[name], **_availability(name)}
+    engines = {name: {**saved[name], "available": True} for name in ENGINE_IDS}
     return {"openai": bool(os.environ.get("OPENAI_API_KEY")), "engines": engines}
 
 
