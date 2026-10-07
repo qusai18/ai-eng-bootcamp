@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GitBytes — repo recommendations</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='9' y='9' width='14' height='14' transform='rotate(45 16 16)' fill='%23C0361B'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="mast">
+    <div class="mast-top">
+      <span>FIELD NOTES ON OPEN SOURCE</span>
+      <span><span id="clock">—</span> · GITHUB BUDGET <b id="budget">…</b></span>
+    </div>
+    <div class="mast-mid">
+      <h1>GitBytes<span class="dot">.</span><svg class="flag" viewBox="0 0 26 38" aria-hidden="true"><path d="M7 36V3" stroke="#C0361B" stroke-width="2.4"/><path d="M7 4h16l-6 6 6 6H7z" fill="#C0361B"/></svg></h1>
+      <p class="dek">A field instrument for finding GitHub repositories worth your attention — <em>by search</em>, by <em>ideation</em> from your agent’s notes, or by taking <em>your complaint</em> and prescribing for it. Runs in this tab; only the public GitHub searches leave your machine.</p>
+    </div>
+    <div class="dbl"></div>
+    <div class="ruler">
+      <div class="ruler-read" id="rread">STANDBY</div>
+      <div class="ruler-fill" id="rfill"></div>
+      <div class="ruler-flag" id="rflag"></div>
+    </div>
+  </header>
+
+  <nav class="modes" aria-label="Instruments">
+    <button class="mode on" data-mode="survey" type="button">
+      <span class="m-no">INSTRUMENT No.1</span><span class="m-name">Search</span><span class="m-sub">query the field</span>
+    </button><button class="mode" data-mode="context" type="button">
+      <span class="m-no">INSTRUMENT No.2</span><span class="m-name">Ideation</span><span class="m-sub">read your agent</span>
+    </button><button class="mode" data-mode="pain" type="button">
+      <span class="m-no">INSTRUMENT No.3</span><span class="m-name">Painpoint</span><span class="m-sub">complain, get prescriptions</span>
+    </button>
+  </nav>
+  <div class="mode-desc" id="modedesc"></div>
+
+  <main>
+    <!-- No.1 SEARCH -->
+    <section class="stage on" id="st-survey">
+      <label class="lbl" for="qin">Query — plain words, or GitHub qualifiers (topic:, language:, stars:)</label>
+      <input id="qin" class="big-in" placeholder="e.g. topic:cli language:rust — or just: fast pdf generation" autocomplete="off" spellcheck="false">
+      <div class="qualrow">
+        <div class="qgroup"><span class="qlbl">SORT</span>
+          <button data-g="sort" data-v="best" class="on" type="button">BEST MATCH</button><button data-g="sort" data-v="stars" type="button">STARS</button><button data-g="sort" data-v="updated" type="button">RECENT PUSH</button>
+        </div>
+        <div class="qgroup"><span class="qlbl">MIN STARS</span>
+          <button data-g="stars" data-v="0" class="on" type="button">ANY</button><button data-g="stars" data-v="100" type="button">100</button><button data-g="stars" data-v="1000" type="button">1K</button><button data-g="stars" data-v="10000" type="button">10K</button>
+        </div>
+      </div>
+      <div class="preview" id="qprev"></div>
+      <p class="criteria" id="scriteria"></p>
+      <div class="runrow"><span class="hint">CTRL/⌘ + ENTER</span><button class="run" data-label="RUN THE SEARCH" type="button">RUN THE SEARCH</button></div>
+    </section>
+
+    <!-- No.2 IDEATION -->
+    <section class="stage" id="st-context">
+      <label class="lbl" for="ctx">Ideation notes — paste your .cursorrules, a chat summary, a README… or drop the file onto the box</label>
+      <div class="split">
+        <div class="ctxwrap" id="ctxdrop">
+          <textarea id="ctx" spellcheck="false" placeholder="Paste anything your Cursor agent knows about your project — the rules file, a summary of the stack, a README. I’ll pan it for signals: languages, frameworks, databases, tooling…"></textarea>
+          <div class="ctxlinks"><button id="loadsample" class="linky" type="button">LOAD SAMPLE</button><span>·</span><span>DROP A FILE TO FILL THIS</span></div>
+        </div>
+        <aside class="sigpanel">
+          <div class="sp-head">SIGNALS DETECTED <b id="sigcount">0</b></div>
+          <div class="sp-chips" id="sigchips"><span class="sp-empty">nothing yet — start pasting</span></div>
+          <div class="sp-sub">LIKELY PAINS FOR THIS STACK — TAP ONE TO INVESTIGATE</div>
+          <div class="sp-guess" id="sigguess"><span class="sp-empty">—</span></div>
+        </aside>
+      </div>
+      <div class="runrow"><span class="hint">CTRL/⌘ + ENTER · CLICK A SIGNAL TO STRIKE IT OUT</span><button class="run" data-label="RUN IDEATION" type="button">RUN IDEATION</button></div>
+    </section>
+
+    <!-- No.3 PAINPOINT -->
+    <section class="stage" id="st-pain">
+      <label class="lbl" for="ptxt">The complaint — describe the friction in your own words</label>
+      <div class="painsplit">
+        <textarea id="ptxt" spellcheck="false" placeholder="What hurts today? “My test suite takes forever.” “Auth boilerplate, again.” “I dread generating PDFs.”…"></textarea>
+        <div class="dxbox">
+          <div class="dx-lbl">DIAGNOSIS</div>
+          <div class="dx-val" id="dxval">AWAITING COMPLAINT</div>
+        </div>
+      </div>
+      <div class="exrow">TRY:
+        <button class="exch" data-say="my test suite is slow and flaky" type="button">slow tests</button>
+        <button class="exch" data-say="I keep rewriting auth boilerplate" type="button">auth boilerplate</button>
+        <button class="exch" data-say="env vars and secrets are a mess" type="button">env mess</button>
+        <button class="exch" data-say="css and responsive layout are a slog" type="button">css fatigue</button>
+        <button class="exch" data-say="my CI builds and bundling are slow" type="button">slow builds</button>
+        <button class="exch" data-say="I want to wire up local llms and agents" type="button">local llms</button>
+      </div>
+      <div class="runrow"><span class="hint">CTRL/⌘ + ENTER</span><button class="run" data-label="WRITE THE PRESCRIPTION" type="button">WRITE THE PRESCRIPTION</button></div>
+    </section>
+
+    <!-- assay log -->
+    <section class="console">
+      <div class="c-head"><span>ASSAY LOG</span><span>LOCAL PIPELINE — ONLY GITHUB SEARCHES LEAVE THE TAB</span></div>
+      <div class="c-lines" id="log"><span id="caret"></span></div>
+    </section>
+
+    <!-- dossier -->
+    <section class="dossier">
+      <div id="intro">
+        <div class="ed">
+          <p><span class="dropcap">T</span>hree instruments, one page. <b>Search</b> queries the field directly and shows the raw GitHub query before it fires. <b>Ideation</b> takes whatever your Cursor agent knows — rules files, chat summaries, READMEs — and pans the text for signals as you type. <b>Painpoint</b> takes the thing that hurts today, stamps a diagnosis on it, and prescribes repositories. Fit scores are computed locally from stars, freshness and signal overlap. Nothing is stored, nothing is sent anywhere else.</p>
+        </div>
+        <div class="spec-label">SPECIMEN — WHAT A RECOVERED CLAIM LOOKS LIKE</div>
+        <article class="entry pick">
+          <div class="e-rank">01<div class="anno">rank — by fit</div></div>
+          <div class="e-main">
+            <div class="e-name"><a href="https://github.com/BurntSushi/ripgrep" target="_blank" rel="noopener">BurntSushi/ripgrep</a><span class="stamp">SPECIMEN</span></div>
+            <div class="e-meta"><i class="dia"></i>RUST · 47.6K STARS · PUSHED 9 DAYS AGO · BURNTSUSHI</div>
+            <p class="e-desc">ripgrep recursively searches directories for a regex pattern while respecting your gitignore.</p>
+            <p class="e-why"><span class="mark">✳</span> Illustrative entry — heavy field support · active recently.</p>
+            <div class="e-topics">RG · GREP · SEARCH</div>
+          </div>
+          <div class="e-side">
+            <div class="fit">
+              <div class="ticks go"><span class="tick f"></span><span class="tick f"></span><span class="tick f"></span><span class="tick f"></span><span class="tick f"></span><span class="tick f"></span><span class="tick f"></span><span class="tick f"></span><span class="tick f"></span><span class="tick f"></span><span class="tick"></span><span class="tick"></span></div>
+              <div class="fit-n">FIT <b>87</b><span class="fit-pct">/100</span></div>
+            </div>
+            <div class="anno">fit — scored locally:<br>stars, freshness, overlap</div>
+            <div class="e-actions">
+              <a class="mini-btn" href="https://github.com/BurntSushi/ripgrep" target="_blank" rel="noopener">OPEN ↗</a>
+              <button class="mini-btn" id="speccopy" type="button">COPY FOR CURSOR</button>
+            </div>
+          </div>
+        </article>
+        <div class="spec-cap">✳ — THE CASE FOR IT · FIT TICKS — LOCAL SCORE, NOT GITHUB’S OPINION · STAMPS MARK THE PICK OF THE RUN. RUN ANY INSTRUMENT ABOVE TO REPLACE THIS SPECIMEN WITH LIVE CLAIMS.</div>
+      </div>
+
+      <div class="d-head" id="dhead" hidden>
+        <div class="d-title">Dossier</div>
+        <div class="d-count" id="dcount"></div>
+        <button class="mini-btn" id="copyall" type="button">COPY FULL BRIEFING</button>
+      </div>
+      <div class="notice" id="notice" hidden></div>
+      <div id="results"></div>
+      <div class="adj" id="adj">
+        <div class="adj-lbl">DIG NEXT — ADJACENT CLAIMS &amp; PAINS YOU PROBABLY HAVE</div>
+        <div class="adj-chips" id="adjchips"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>GITBYTES · A FIELD INSTRUMENT FOR REPO DISCOVERY</span>
+    <span>UNAUTHENTICATED GITHUB API · 10 SEARCHES/MIN · CORE 60/HR · RESETS HOURLY</span>
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
