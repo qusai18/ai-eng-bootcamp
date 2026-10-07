@@ -425,6 +425,14 @@ mark.flash{animation:flash 1.1s}
 .ask-form{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin-top:16px}
 .ask-form textarea{width:min(100%,720px);resize:vertical}
 .ask-error{margin-top:14px;color:#9b2c2c;font-size:13px;max-width:72ch}
+.ask-usage{margin-top:22px}
+.ask-usage table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);font-size:13px}
+.ask-usage th,.ask-usage td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.ask-usage tr:last-child td{border-bottom:0}
+.ask-usage th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.ask-usage td:nth-child(n+3),.ask-usage th:nth-child(n+3){text-align:right;font-variant-numeric:tabular-nums}
+.ask-usage-total{margin:10px 0 0;font-size:13px;font-weight:700}
+.ask-usage-note{margin:6px 0 0;font-size:12px;line-height:1.5;color:var(--ink-3);max-width:78ch}
 .ask-view{max-width:1180px}
 .ask-split{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(280px,.95fr);gap:28px;align-items:start}
 .ask-answer p{font-size:16px;line-height:1.7;max-width:72ch;white-space:pre-wrap}

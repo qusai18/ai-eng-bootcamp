@@ -3,8 +3,10 @@ import threading
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from knowledge.billing import begin, finish
 from knowledge.engines import ENGINES
 from knowledge.store import (
     ENGINES as ENGINE_IDS,
@@ -117,11 +119,12 @@ def ask(body: AskIn):
         raise HTTPException(status_code=409, detail="This engine is still indexing")
     if saved["state"] != "ready":
         raise HTTPException(status_code=409, detail="Index this engine before asking")
-    try:
-        result = ENGINES[body.engine].ask(folder, body.question.strip(), body.docId)
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
     sources = read_manifest(folder)
     if body.docId:
         sources = [item for item in sources if item["id"] == body.docId]
-    return {**result, "sources": sources}
+    begin()
+    try:
+        result = ENGINES[body.engine].ask(folder, body.question.strip(), body.docId)
+    except Exception as exc:
+        return JSONResponse(status_code=502, content={"detail": str(exc), "usage": finish()})
+    return {**result, "sources": sources, "usage": finish()}

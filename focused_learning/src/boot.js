@@ -775,7 +775,7 @@ function graphModelHTML(pats) {
 /* ============================== STATE & ROUTER ============================== */
 const state = { view: 'home', docId: null, q: '', atlasCat: 'all', focusPid: null,
   recall: { scope: 'all', session: null, autostart: false },
-  ask: { engine: 'a', scope: 'all', question: '', status: null, answer: '', grounding: [], graph: null, sources: [], error: '', busy: '' } };
+  ask: { engine: 'a', scope: 'all', question: '', status: null, answer: '', grounding: [], graph: null, sources: [], usage: null, error: '', busy: '' } };
 
 function render() {
   const m = $('#main');
@@ -1547,6 +1547,30 @@ function bindHypergraph() {
     paint(hit ? hit.dataset.hid : '');
   });
 }
+function money(value) {
+  const n = Number(value);
+  if (!isFinite(n)) return '\u2014';
+  const digits = n !== 0 && Math.abs(n) < 0.01 ? 6 : 2;
+  return '$' + n.toFixed(digits);
+}
+function usageHTML(usage) {
+  if (!usage) return '';
+  const calls = usage.calls || [];
+  if (!calls.length) return '<p class="ask-usage-note">' + esc(usage.note || 'No OpenAI calls were made for this question.') + '</p>';
+  const rows = calls.map(call => {
+    const cached = call.cachedTokens ? ' <span class="ask-usage-note">(' + Number(call.cachedTokens).toLocaleString() + ' cached)</span>' : '';
+    return '<tr><td>' + esc(call.kind || 'call') + '</td><td>' + esc(call.model || '') + '</td><td>' +
+      Number(call.inputTokens || 0).toLocaleString() + cached + '</td><td>' + Number(call.outputTokens || 0).toLocaleString() +
+      '</td><td>' + money(call.chargeUsd) + '</td></tr>';
+  }).join('');
+  const count = calls.length === 1 ? '1 call' : calls.length + ' calls';
+  return '<section class="ask-usage"><div class="sec-head"><span class="sec-title">API usage</span><span class="rule"></span></div>' +
+    '<table><thead><tr><th>Call</th><th>Model</th><th>Input tokens</th><th>Output tokens</th><th>Charge</th></tr></thead><tbody>' +
+    rows + '</tbody></table><p class="ask-usage-total">' + count + ' \u00B7 ' +
+    Number(usage.inputTokens || 0).toLocaleString() + ' input \u00B7 ' + Number(usage.outputTokens || 0).toLocaleString() +
+    ' output \u00B7 ' + money(usage.chargeUsd) + '</p>' +
+    (usage.note ? '<p class="ask-usage-note">' + esc(usage.note) + '</p>' : '') + '</section>';
+}
 function viewAsk() {
   const row = askEngineState();
   const indexing = state.ask.busy === 'index' || row.state === 'indexing';
@@ -1562,6 +1586,7 @@ function viewAsk() {
   const result = state.ask.answer
     ? '<div class="ask-split"><div class="ask-answer"><div class="sec-head"><span class="sec-title">Answer</span><span class="rule"></span></div><p>' + esc(state.ask.answer) + '</p></div>' + hypergraphHTML(state.ask.graph) + '</div>'
     : '';
+  const usage = usageHTML(state.ask.usage);
   return '<div class="view ask-view"><div class="kicker">Knowledge answers</div><h1 class="title">Ask the knowledge base.</h1>' +
     '<p class="ask-lead">Three hypergraph engines answer from the documents you have captured. Index an engine, then ask.</p>' +
     '<div class="engine-row" role="tablist">' + engines + '</div>' +
@@ -1571,7 +1596,7 @@ function viewAsk() {
     '<form class="ask-form" id="askForm"><textarea id="askQ" rows="3" placeholder="What do these documents say?">' + esc(state.ask.question) + '</textarea>' +
     '<button class="btn primary" id="askSend" type="submit"' + (row.state !== 'ready' || state.ask.busy === 'ask' ? ' disabled' : '') + '>' + (state.ask.busy === 'ask' ? 'Asking\u2026' : 'Ask') + '</button></form>' +
     (state.ask.error ? '<p class="ask-error">' + esc(state.ask.error) + '</p>' : '') +
-    result +
+    result + usage +
     (sources ? '<div class="radar-row">' + sources + '</div>' : '') +
     (ground ? '<div class="sec-head"><span class="sec-title">Grounding</span><span class="rule"></span></div><div class="ground">' + ground + '</div>' : '') +
     '</div>';
@@ -1583,6 +1608,7 @@ function bindAsk() {
     state.ask.grounding = [];
     state.ask.graph = null;
     state.ask.sources = [];
+    state.ask.usage = null;
     state.ask.error = '';
     render();
   });
@@ -1624,6 +1650,7 @@ async function indexAsk() {
   state.ask.grounding = [];
   state.ask.graph = null;
   state.ask.sources = [];
+  state.ask.usage = null;
   render();
   try {
     const r = await fetch('/api/knowledge/index', {
@@ -1647,6 +1674,7 @@ async function askQuestion() {
   if (!question) return;
   state.ask.busy = 'ask';
   state.ask.error = '';
+  state.ask.usage = null;
   render();
   try {
     const body = { engine: state.ask.engine, clientId: clientId(), question };
@@ -1657,6 +1685,7 @@ async function askQuestion() {
       body: JSON.stringify(body),
     });
     const data = await r.json().catch(() => ({}));
+    state.ask.usage = data.usage || null;
     if (!r.ok) throw new Error(apiError(data, 'Ask failed'));
     state.ask.answer = data.answer || '';
     state.ask.grounding = data.grounding || [];
