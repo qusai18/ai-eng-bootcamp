@@ -437,7 +437,6 @@ mark.flash{animation:flash 1.1s}
 .ask-split{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(280px,.95fr);gap:28px;align-items:start}
 .ask-answer p{font-size:16px;line-height:1.7;max-width:72ch;white-space:pre-wrap}
 .hypergraph{margin:0;min-width:0}
-.hcap{margin:0 0 8px;font-size:12px;line-height:1.5;color:var(--ink-3)}
 .hsvg{width:100%;height:auto;display:block;background:#fff;border:1px solid var(--line)}
 .h-region{opacity:.34;cursor:pointer}
 .h-node circle{fill:#fff;stroke:#17343d;stroke-width:1.6}

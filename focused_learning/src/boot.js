@@ -1486,7 +1486,6 @@ function hypergraphHTML(graph) {
     '<li data-hid="' + e.id + '"><i style="background:' + HYPER_COLORS[i % HYPER_COLORS.length] + '"></i><span>' + esc(e.label) + '</span></li>'
   ).join('');
   return '<figure class="hypergraph"><div class="sec-head"><span class="sec-title">Hypergraph</span><span class="rule"></span></div>' +
-    '<p class="hcap">Each shaded region joins the concepts in one hyperedge from this answer.</p>' +
     svg + '<ol class="hlegend">' + legend + '</ol></figure>';
 }
 function hyperBlob(members) {
@@ -1568,8 +1567,7 @@ function usageHTML(usage) {
     '<table><thead><tr><th>Call</th><th>Model</th><th>Input tokens</th><th>Output tokens</th><th>Charge</th></tr></thead><tbody>' +
     rows + '</tbody></table><p class="ask-usage-total">' + count + ' \u00B7 ' +
     Number(usage.inputTokens || 0).toLocaleString() + ' input \u00B7 ' + Number(usage.outputTokens || 0).toLocaleString() +
-    ' output \u00B7 ' + money(usage.chargeUsd) + '</p>' +
-    (usage.note ? '<p class="ask-usage-note">' + esc(usage.note) + '</p>' : '') + '</section>';
+    ' output \u00B7 ' + money(usage.chargeUsd) + '</p></section>';
 }
 function viewAsk() {
   const row = askEngineState();
