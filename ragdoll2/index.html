@@ -190,6 +190,8 @@ footer{margin-top:80px;border-top:3px solid var(--ink);position:relative;padding
 footer::before{content:'';position:absolute;left:0;right:0;top:4px;border-top:1px solid var(--cyan)}
 .colo{display:flex;justify-content:space-between;gap:14px;font:500 10px var(--mono);
   letter-spacing:1.2px;text-transform:uppercase;color:var(--faint);flex-wrap:wrap}
+.mast-row a,.colo a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.mast-row a.acc,.colo a.acc{color:var(--accent)}
 #toasts{position:fixed;left:20px;bottom:20px;z-index:99;display:flex;flex-direction:column;gap:8px}
 .toast{background:var(--ink);color:#fff;font:500 11.5px var(--mono);padding:11px 15px;
   border-left:4px solid var(--accent);max-width:380px;animation:tin .25s ease;box-shadow:4px 4px 0 rgba(3,29,64,.22)}
@@ -204,8 +206,8 @@ footer::before{content:'';position:absolute;left:0;right:0;top:4px;border-top:1p
   <header class="masthead">
     <div class="mast-row">
       <span>RAGDoll2 · DOC. RB-05 · EVALUATION HARNESS</span>
-      <span class="acc">SINGLE FILE · RUNS LOCALLY · KEYS STAY IN THIS BROWSER</span>
-      <span>EVIDENCE SET · trec-rag.github.io</span>
+      <span class="acc"><a class="acc" href="https://github.com/qusai18/ai-eng-bootcamp/blob/2026-10-01-d19q/ragdoll2/README.md" target="_blank" rel="noopener">Instructor guide</a></span>
+      <span><a href="https://github.com/qusai18/ai-eng-bootcamp" target="_blank" rel="noopener">GitHub repo</a></span>
     </div>
     <div class="title-block">
       <div>
@@ -334,7 +336,7 @@ footer::before{content:'';position:absolute;left:0;right:0;top:4px;border-top:1p
   <footer>
     <div class="colo">
       <span>RAGDoll2 · Companion instrument to AI Governance Series · Post #5 — RAG</span>
-      <span>Harness pattern after RAGDoll: dolls → shared topics → pluggable evaluators → report</span>
+      <span><a class="acc" href="https://github.com/qusai18/ai-eng-bootcamp/blob/2026-10-01-d19q/ragdoll2/README.md" target="_blank" rel="noopener">Instructor guide</a> · <a href="https://github.com/qusai18/ai-eng-bootcamp" target="_blank" rel="noopener">GitHub repo</a></span>
       <span class="acc">Retrieve · Ground · Verify</span>
     </div>
   </footer>
