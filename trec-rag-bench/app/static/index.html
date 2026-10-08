@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RAGDoll comparison bench</title>
+  <style>
+    :root {
+      --ink: #1c1915;
+      --muted: #5c564c;
+      --line: #d9d1c3;
+      --paper: #f6f1e7;
+      --card: #fffdf8;
+      --green: #0f6e56;
+      --green-soft: #e5f3ee;
+      --warn: #8a4b12;
+      --warn-soft: #f8eadb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 16px/1.5 "Segoe UI", Georgia, sans-serif;
+    }
+    header, main { max-width: 1080px; margin: 0 auto; padding: 28px 20px; }
+    header { padding-bottom: 8px; }
+    h1 { font-size: 32px; line-height: 1.15; margin: 0 0 8px; letter-spacing: -0.03em; }
+    h2 { font-size: 18px; margin: 0 0 12px; }
+    p.lead { margin: 0; color: var(--muted); max-width: 68ch; }
+    section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 18px;
+      margin-top: 16px;
+    }
+    .grid { display: grid; gap: 16px; grid-template-columns: 1.1fr 0.9fr; }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    label { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; }
+    input[type="text"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font: inherit;
+    }
+    .endpoint { display: grid; grid-template-columns: minmax(110px, 160px) minmax(0, 1fr) auto; gap: 8px; margin-bottom: 8px; }
+    .table-wrap { overflow-x: auto; }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font: inherit;
+      cursor: pointer;
+      background: var(--ink);
+      color: white;
+    }
+    button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: 13px; }
+    .rank { font-weight: 700; }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: 13px;
+    }
+    .warn { background: var(--warn-soft); color: var(--warn); }
+    details { margin-top: 10px; }
+    pre {
+      white-space: pre-wrap;
+      background: #f3eee4;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .note { color: var(--muted); font-size: 14px; }
+    .error { color: var(--warn); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>RAGDoll comparison bench</h1>
+    <p class="lead">
+      Send the same questions to several application APIs, then score the answers
+      with RAGDoll's citation-support, nugget-coverage, and pairwise metrics.
+    </p>
+  </header>
+  <main>
+    <section class="grid">
+      <div>
+        <h2>Applications</h2>
+        <p class="note">Each URL receives <code>POST {"topic_id","question","narrative"}</code> and should return an answer with citations.</p>
+        <div id="endpoints"></div>
+        <button class="ghost" id="add" type="button">Add endpoint</button>
+      </div>
+      <div>
+        <h2>Questions</h2>
+        <div id="topics"></div>
+      </div>
+    </section>
+    <section>
+      <button id="run" type="button">Run comparison</button>
+      <p id="status" class="note"></p>
+      <div id="report"></div>
+    </section>
+  </main>
+  <script>
+    const endpointsEl = document.querySelector("#endpoints");
+    const topicsEl = document.querySelector("#topics");
+    const reportEl = document.querySelector("#report");
+    const statusEl = document.querySelector("#status");
+
+    function endpointRow(name, url) {
+      const row = document.createElement("div");
+      row.className = "endpoint";
+      row.innerHTML = `
+        <input type="text" class="name" value="${escapeAttr(name)}" aria-label="Application name" />
+        <input type="text" class="url" value="${escapeAttr(url)}" aria-label="API URL" />
+        <button class="ghost remove" type="button">Remove</button>`;
+      row.querySelector(".remove").onclick = () => row.remove();
+      endpointsEl.appendChild(row);
+    }
+
+    function escapeAttr(value) {
+      return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;");
+    }
+
+    function pct(value) {
+      return `${Math.round(value * 100)}%`;
+    }
+
+    document.querySelector("#add").onclick = () => endpointRow("Custom", "http://127.0.0.1:8000/query");
+
+    async function load() {
+      const response = await fetch("/api/topics");
+      const data = await response.json();
+      data.defaults.forEach((item) => endpointRow(item.name, item.url));
+      data.topics.forEach((topic) => {
+        const label = document.createElement("label");
+        label.innerHTML = `<input type="checkbox" value="${topic.id}" checked /> <span><strong>${topic.title}</strong><br /><span class="note">${topic.question}</span></span>`;
+        topicsEl.appendChild(label);
+      });
+      statusEl.textContent = data.judge;
+    }
+
+    document.querySelector("#run").onclick = async (event) => {
+      const button = event.currentTarget;
+      const endpoints = [...endpointsEl.querySelectorAll(".endpoint")].map((row) => ({
+        name: row.querySelector(".name").value.trim(),
+        url: row.querySelector(".url").value.trim(),
+      })).filter((item) => item.name && item.url);
+      const topic_ids = [...topicsEl.querySelectorAll("input:checked")].map((input) => input.value);
+      button.disabled = true;
+      statusEl.textContent = "Calling endpoints and scoring with RAGDoll…";
+      reportEl.innerHTML = "";
+      try {
+        const response = await fetch("/api/compare", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoints, topic_ids }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || "comparison failed");
+        render(data);
+        statusEl.textContent = "Scored with RAGDoll citation, nugget, and pairwise metrics.";
+      } catch (error) {
+        statusEl.innerHTML = `<span class="error">${error.message}</span>`;
+      } finally {
+        button.disabled = false;
+      }
+    };
+
+    function render(data) {
+      const rows = data.leaderboard.map((row) => `
+        <tr>
+          <td class="rank">${row.rank}</td>
+          <td>${row.run_id}</td>
+          <td>${pct(row.composite)}</td>
+          <td>${pct(row.vital)}</td>
+          <td>${pct(row.citation_precision)}</td>
+          <td>${pct(row.citation_recall)}</td>
+          <td>${row.wins}-${row.losses}-${row.ties}</td>
+        </tr>`).join("");
+      const pairs = data.pairwise.map((row) => `
+        <tr>
+          <td>${row.run_a}</td>
+          <td>${row.run_b}</td>
+          <td>${row.run_a_wins}</td>
+          <td>${row.run_b_wins}</td>
+          <td>${row.ties}</td>
+          <td>${row.run_a_preference_rate}</td>
+        </tr>`).join("");
+      const answers = data.results.map((row) => `
+        <details>
+          <summary>${row.run_id} · ${row.topic_id} · vital ${pct(row.nugget.vital)} · citation recall ${pct(row.support.weighted_recall)}</summary>
+          <pre>${row.answer_text || "(empty answer)"}</pre>
+        </details>`).join("");
+      const errors = data.errors.length
+        ? `<p class="pill warn">${data.errors.length} endpoint error${data.errors.length === 1 ? "" : "s"}</p>`
+        : "";
+      reportEl.innerHTML = `
+        ${errors}
+        <h2>Leaderboard</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>#</th><th>Application</th><th>Composite</th><th>Vital nuggets</th><th>Citation precision</th><th>Citation recall</th><th>W-L-T</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+        <h2>Pairwise</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>A</th><th>B</th><th>A wins</th><th>B wins</th><th>Ties</th><th>A preference</th></tr></thead>
+          <tbody>${pairs}</tbody>
+        </table></div>
+        <h2>Answers</h2>
+        ${answers}`;
+    }
+
+    load();
+  </script>
+</body>
+</html>
