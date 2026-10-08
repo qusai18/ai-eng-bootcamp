@@ -80,3 +80,7 @@ services:
     runtime: static
     buildCommand: echo static
     staticPublishPath: ./ragdoll2
+    routes:
+      - type: rewrite
+        source: /
+        destination: /index.html
