@@ -74,3 +74,9 @@ services:
     dockerfilePath: ./agentic-memory/demo-ui/Dockerfile
     dockerContext: ./agentic-memory/demo-ui
     healthCheckPath: /
+
+  - type: web
+    name: ragdoll2
+    runtime: static
+    buildCommand: echo static
+    staticPublishPath: ./ragdoll2
