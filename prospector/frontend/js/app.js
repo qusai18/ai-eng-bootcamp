@@ -455,4 +455,11 @@ drop.addEventListener('drop', e => {
 setMode('survey');
 updatePreview();
 renderSignals();
-el('qin').focus();
+const incomingQuery = new URLSearchParams(location.search).get('q');
+if (incomingQuery) {
+  el('qin').value = incomingQuery.slice(0, 256);
+  updatePreview();
+  run();
+} else {
+  el('qin').focus();
+}
