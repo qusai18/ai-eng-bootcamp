@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAGDoll3 — RAG Proving Ground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,900;1,9..144,500;1,9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Palette sampled from www.icf.com (main.min.css): navy #031d40, blue #0785f2, mint #30f298, cyan #5bcbf5, gold #ffc628 */
+:root{
+  --paper:#f3f5f6; --paper2:#e7eef3; --ink:#031d40; --ink2:#414042; --faint:#768591;
+  --rule:#d8e0e3; --rule2:#bcbec0; --accent:#0785f2; --mint:#30f298; --cyan:#5bcbf5;
+  --gold:#ffc628; --green:#007178; --red:#e1085a;
+  --mono:'IBM Plex Mono',ui-monospace,monospace; --disp:'Fraunces',serif; --sans:'Archivo',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5}
+::selection{background:var(--accent);color:#fff}
+.icf-bar{position:sticky;top:0;z-index:40;height:6px;
+  background:linear-gradient(90deg,#031d40 0 68%,#0785f2 68% 84%,#30f298 84%)}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:var(--mono);font-size:12.5px;color:var(--ink);background:#fff;
+  border:1.5px solid var(--rule2);padding:8px 10px;width:100%;border-radius:2px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:2px 2px 0 rgba(7,133,242,.18)}
+textarea{resize:vertical}
+.wrap{max-width:1160px;margin:0 auto;padding:26px 32px 90px}
+@media(max-width:720px){.wrap{padding:18px 16px 70px}}
+
+.masthead{position:relative;padding-top:6px}
+.mast-row{display:flex;justify-content:space-between;gap:12px;font:500 10.5px var(--mono);
+  letter-spacing:1.4px;text-transform:uppercase;color:var(--ink2);flex-wrap:wrap}
+.mast-row .acc{color:var(--accent)}
+.title-block{margin:26px 0 8px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
+h1{font-family:var(--disp);font-weight:900;font-size:clamp(46px,7.4vw,88px);line-height:.92;letter-spacing:-.02em}
+h1 em{font-style:italic;font-weight:500;color:var(--accent)}
+.subtitle{font-family:var(--disp);font-style:italic;font-weight:500;font-size:clamp(15px,2vw,19px);
+  color:var(--ink2);margin-top:12px;max-width:640px}
+.subtitle b{font-style:normal;font-weight:600;color:var(--ink)}
+.stamp{transform:rotate(-5deg);border:2.5px solid var(--accent);color:var(--ink);
+  background:var(--mint);font:600 10px var(--mono);letter-spacing:2px;text-transform:uppercase;padding:8px 12px;
+  border-radius:3px;transition:transform .25s;white-space:nowrap}
+.stamp:hover{transform:rotate(-2deg) scale(1.03)}
+.rule2x{border-top:3px solid var(--ink);margin-top:24px;position:relative}
+.rule2x::after{content:'';position:absolute;left:0;right:0;top:3px;border-top:1px solid var(--cyan)}
+
+.sec{margin-top:56px}
+.sec-h{display:flex;align-items:baseline;gap:14px;border-bottom:2px solid var(--ink);padding-bottom:10px;flex-wrap:wrap}
+.secnum{font:600 12px var(--mono);border:1.5px solid var(--ink);color:#fff;background:var(--ink);padding:3px 8px;border-radius:2px;flex-shrink:0}
+.sec-h h2{font-family:var(--disp);font-weight:900;font-size:26px;letter-spacing:-.01em}
+.sec-h .hmeta{margin-left:auto;font:500 10px var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--faint)}
+.cols{display:grid;grid-template-columns:420px 1fr;gap:30px;margin-top:22px}
+.cols.flip{grid-template-columns:1fr 420px}
+@media(max-width:960px){.cols,.cols.flip{grid-template-columns:1fr}}
+.note{font:400 11.5px var(--mono);color:var(--ink2);line-height:1.65}
+.note b{font-weight:600;color:var(--ink)}
+.note .acc{color:var(--accent)}
+
+.ep{display:flex;align-items:center;gap:12px;padding:13px 2px;border-bottom:1px dashed var(--rule2)}
+.ep .sw{width:11px;height:11px;border-radius:2px;background:var(--c);flex-shrink:0;box-shadow:1.5px 1.5px 0 var(--ink)}
+.ep .idb{min-width:0;flex:1}
+.ep .nm{font-weight:700;font-size:14px}
+.ep .nm .mdl{font:500 10px var(--mono);color:var(--faint);margin-left:8px}
+.ep .url{font:400 10.5px var(--mono);color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}
+.ep .st{font:500 10px var(--mono);letter-spacing:.6px;white-space:nowrap}
+.ep .st .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--faint);margin-right:5px;vertical-align:1px}
+.ep .st.ok .dot{background:var(--green)} .ep .st.bad .dot{background:var(--red)}
+.ibtn{background:none;border:1.5px solid transparent;border-radius:4px;padding:5px 6px;color:var(--ink2);display:inline-grid;place-items:center}
+.ibtn:hover{border-color:var(--accent);color:var(--accent)}
+.ibtn svg{width:15px;height:15px}
+.ibtn.danger:hover{border-color:var(--red);color:var(--red)}
+.empty-hint{padding:26px 0;font:400 12px var(--mono);color:var(--faint);border-bottom:1px dashed var(--rule2)}
+
+.doll-stack{display:flex;flex-direction:column;gap:18px;margin-top:22px}
+.panel{border:1.5px solid var(--ink);background:#fff;padding:18px;box-shadow:4px 4px 0 rgba(3,29,64,.1)}
+.panel h3{font:600 11px var(--mono);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;color:var(--ink)}
+.panel .psub{font:400 10.5px var(--mono);color:var(--ink2);margin-bottom:8px}
+label.f{display:block;font:600 9.5px var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--ink2);margin:12px 0 4px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+details.adv{margin-top:12px;border-top:1px dashed var(--rule2);padding-top:8px}
+details.adv summary{font:600 10px var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--accent);cursor:pointer;list-style:none}
+details.adv summary::-webkit-details-marker{display:none}
+details.adv summary::before{content:'+ ';font-weight:600}
+details.adv[open] summary::before{content:'− '}
+.btn{font:600 11px var(--mono);letter-spacing:1.8px;text-transform:uppercase;background:#fff;
+  color:var(--ink);border:1.5px solid var(--ink);padding:9px 16px;border-radius:2px;transition:.15s;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{background:var(--ink);color:#fff}
+.btn svg{width:13px;height:13px}
+.btn.primary{background:var(--accent);border-color:var(--ink);color:#fff}
+.btn.primary:hover{background:var(--ink)}
+.btn:disabled,.btn:disabled:hover{opacity:.45;cursor:not-allowed;background:var(--rule);color:var(--faint);border-color:var(--rule2)}
+.btn.mini{padding:6px 10px;font-size:9.5px;letter-spacing:1.2px}
+.btn.mini:hover{background:var(--ink);color:#fff}
+.linklike{background:none;border:none;font:500 10.5px var(--mono);color:var(--ink2);text-decoration:underline;padding:0;margin-top:8px}
+.linklike:hover{color:var(--accent)}
+
+.krow{display:flex;align-items:center;gap:12px;margin:10px 0}
+.krow input[type=range]{-webkit-appearance:none;appearance:none;height:2px;background:var(--ink);border:none;padding:0;flex:1}
+.krow input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+  background:var(--accent);border:2px solid var(--ink);cursor:pointer}
+.krow .kv{font:600 13px var(--mono);min-width:56px;text-align:right;color:var(--accent)}
+.presets{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px}
+.tcount{font:600 11px var(--mono);letter-spacing:1px;color:var(--accent)}
+table.ledger{width:100%;border-collapse:collapse}
+table.ledger th{font:600 9.5px var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--ink2);
+  text-align:left;padding:8px 8px;border-bottom:2px solid var(--ink)}
+table.ledger td{font:400 12px var(--mono);padding:7px 8px;border-bottom:1px dashed var(--rule2);vertical-align:top}
+table.ledger td.q{color:var(--ink)}
+.topics-box{max-height:300px;overflow:auto;border:1.5px solid var(--rule2);background:#fff}
+.cb{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+
+.harness{display:grid;grid-template-columns:300px 1fr;gap:26px;margin-top:22px;align-items:start}
+@media(max-width:960px){.harness{grid-template-columns:1fr}}
+.runbtn{font:600 13.5px var(--mono);letter-spacing:2.5px;text-transform:uppercase;width:100%;
+  background:var(--accent);color:#fff;border:2px solid var(--ink);padding:18px 20px;
+  box-shadow:5px 5px 0 var(--ink);transition:.12s;display:flex;align-items:center;justify-content:center;gap:10px}
+.runbtn svg{width:16px;height:16px}
+.runbtn:hover:not(:disabled){transform:translate(-1px,-1px);box-shadow:6px 6px 0 var(--ink)}
+.runbtn:active:not(:disabled){transform:translate(3px,3px);box-shadow:1px 1px 0 var(--ink)}
+.runbtn:disabled{opacity:.45;cursor:not-allowed;box-shadow:3px 3px 0 var(--rule2)}
+.runbtn.stop{background:var(--ink)}
+.pbar{height:8px;border:1.5px solid var(--ink);background:#fff;margin:14px 0 6px;position:relative}
+.pbar i{position:absolute;inset:1px auto 1px 1px;background:linear-gradient(90deg,var(--accent),var(--mint));width:0%;transition:width .3s}
+.pstat{font:500 10.5px var(--mono);color:var(--ink2);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#liveBlock{display:none}
+.log{background:#031d40;color:#d8e0e3;font:400 10.5px/1.7 var(--mono);padding:12px 14px;height:190px;
+  overflow:auto;border:1.5px solid var(--ink);margin-top:14px}
+.log .ok{color:#30f298}.log .err{color:#ff7aa2}.log .jm{color:#ffc628}.log .inf{color:#8aa4bb}
+.tracebox{border:1.5px solid var(--ink);margin-top:14px;background:#fff}
+#trace{display:block;width:100%}
+.trace-cap{font:500 9px var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--faint);
+  padding:6px 10px;border-top:1px dashed var(--rule2)}
+
+.agg{width:100%;border-collapse:collapse;margin-top:20px}
+.agg th{font:600 9.5px var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--ink2);
+  padding:8px 10px;border-bottom:2px solid var(--ink);text-align:right;cursor:pointer;user-select:none;white-space:nowrap}
+.agg th:first-child{text-align:left;cursor:default}
+.agg th.sorted{color:var(--accent)}
+.agg td{font:500 12.5px var(--mono);padding:10px;border-bottom:1px dashed var(--rule2);text-align:right}
+.agg td:first-child{text-align:left}
+.agg td .epname{display:inline-flex;align-items:center;gap:8px;font-weight:600;white-space:nowrap}
+.agg td .sw{width:10px;height:10px;border-radius:2px;background:var(--c);box-shadow:1px 1px 0 var(--ink)}
+.agg td.best{color:var(--accent);font-weight:600}
+.agg td.nul{color:var(--faint);font-weight:400}
+.dp-tabs{display:flex;gap:4px;flex-wrap:wrap;margin:26px 0 6px}
+.dp-tab{font:600 10px var(--mono);letter-spacing:1.2px;text-transform:uppercase;background:#fff;
+  border:1.5px solid var(--rule2);color:var(--ink2);padding:6px 11px;border-radius:2px}
+.dp-tab.on{border-color:var(--ink);color:var(--ink);background:var(--paper2);box-shadow:2px 2px 0 var(--ink)}
+.dp{width:100%;border:1.5px solid var(--ink);background:#fff}
+details.dd{border:1.5px solid var(--rule2);margin-top:12px;background:#fff}
+details.dd[open]{border-color:var(--ink);box-shadow:3px 3px 0 rgba(3,29,64,.1)}
+details.dd summary{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;list-style:none;flex-wrap:wrap}
+details.dd summary::-webkit-details-marker{display:none}
+details.dd summary .chev{font:600 11px var(--mono);color:var(--faint);transition:.15s}
+details.dd[open] summary .chev{transform:rotate(90deg);color:var(--accent)}
+details.dd summary .nm{font-weight:700;font-size:14px;display:inline-flex;align-items:center;gap:8px}
+details.dd summary .sum{font:500 10.5px var(--mono);color:var(--ink2);margin-left:auto}
+.trow{display:flex;gap:10px;align-items:baseline;padding:8px 14px;border-top:1px dashed var(--rule2);cursor:pointer}
+.trow:hover{background:var(--paper2)}
+.trow .g{font:600 12px var(--mono);width:14px;flex-shrink:0}
+.trow .g.ok{color:var(--green)} .trow .g.err{color:var(--red)}
+.trow .qid{font:600 10px var(--mono);color:var(--faint);flex-shrink:0;width:64px}
+.trow .qq{font:400 12px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.trow .ms{font:500 10px var(--mono);color:var(--faint);flex-shrink:0}
+.tdetail{display:none;padding:6px 16px 16px 38px;border-top:1px dashed var(--rule2);background:var(--paper2)}
+.tdetail.open{display:block}
+.tlabel{font:600 9px var(--mono);letter-spacing:1.8px;text-transform:uppercase;color:var(--accent);margin:14px 0 5px}
+.ans{font:400 13px/1.65 var(--sans)}
+.ans mark.unsup{background:transparent;color:var(--red);border-bottom:2px dotted var(--red)}
+.ctx{font:400 10.5px/1.6 var(--mono);color:var(--ink2);border-left:2px solid var(--cyan);
+  padding:6px 10px;margin:6px 0;word-break:break-word}
+.ctx .cid{color:var(--accent);font-weight:600}
+.jline{font:500 11.5px var(--mono)}
+.jline .sc{color:var(--green);font-weight:600}
+.jline .sc.err{color:var(--red)}
+.errtxt{font:500 11.5px var(--mono);color:var(--red)}
+.hallic{font:400 11px var(--mono);color:var(--red);margin-top:4px}
+.empty-report{border:1.5px dashed var(--rule2);margin-top:22px;padding:70px 20px;text-align:center;background:#fff}
+.empty-report .big{font-family:var(--disp);font-style:italic;font-weight:500;font-size:22px;color:var(--faint)}
+.empty-report .sm{font:500 10px var(--mono);letter-spacing:2px;text-transform:uppercase;color:var(--faint);margin-top:10px}
+.exp-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+details.method{margin-top:26px;border-top:1px dashed var(--rule2);padding-top:10px}
+details.method summary{font:600 10px var(--mono);letter-spacing:1.6px;text-transform:uppercase;color:var(--ink2);cursor:pointer;list-style:none}
+details.method summary::-webkit-details-marker{display:none}
+details.method .body{font:400 11.5px/1.75 var(--mono);color:var(--ink2);margin-top:10px;column-count:2;column-gap:36px}
+@media(max-width:800px){details.method .body{column-count:1}}
+details.method b{color:var(--ink)}
+
+footer{margin-top:80px;border-top:3px solid var(--ink);position:relative;padding-top:12px}
+footer::before{content:'';position:absolute;left:0;right:0;top:4px;border-top:1px solid var(--cyan)}
+.colo{display:flex;justify-content:space-between;gap:14px;font:500 10px var(--mono);
+  letter-spacing:1.2px;text-transform:uppercase;color:var(--faint);flex-wrap:wrap}
+.mast-row a,.colo a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.mast-row a.acc,.colo a.acc{color:var(--accent)}
+#toasts{position:fixed;left:20px;bottom:20px;z-index:99;display:flex;flex-direction:column;gap:8px}
+.toast{background:var(--ink);color:#fff;font:500 11.5px var(--mono);padding:11px 15px;
+  border-left:4px solid var(--accent);max-width:380px;animation:tin .25s ease;box-shadow:4px 4px 0 rgba(3,29,64,.22)}
+.toast.ok{border-left-color:var(--mint)} .toast.err{border-left-color:var(--red)}
+@keyframes tin{from{transform:translateX(-16px);opacity:0}to{transform:none;opacity:1}}
+</style>
+</head>
+<body>
+<div class="icf-bar"></div>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="mast-row">
+      <span>RAGDoll3 · DOC. RB-06 · EVALUATION HARNESS</span>
+      <span class="acc"><a class="acc" href="https://github.com/qusai18/ai-eng-bootcamp/blob/2026-10-01-d19q/ragdoll3/README.md" target="_blank" rel="noopener">Instructor guide</a></span>
+      <span><a href="https://github.com/qusai18/ai-eng-bootcamp" target="_blank" rel="noopener">GitHub repo</a></span>
+    </div>
+    <div class="title-block">
+      <div>
+        <h1>RAG<br>Proving <em>Ground</em></h1>
+        <p class="subtitle">The same live comparison as RAGDoll2, plus Ragas, DeepEval reasons, and BenchmarkQED win rates — <b>multiple dolls in, one verdict out.</b></p>
+      </div>
+      <div class="stamp">RAGDoll3<br>Four metrics + AutoE</div>
+    </div>
+    <div class="rule2x"></div>
+  </header>
+
+  <section class="sec" id="sec-dolls">
+    <div class="sec-h">
+      <span class="secnum">01</span><h2>Dolls under test</h2>
+      <span class="hmeta" id="dollCap">0 / 10 DOLLS</span>
+    </div>
+    <div class="doll-stack">
+      <div id="epList"></div>
+      <aside class="panel" id="dollForm">
+        <h3 id="formTitle">Add a doll</h3>
+        <div class="psub">Add up to 10. Each one is a name plus an endpoint. One run sends every doll through the same evidence set.</div>
+        <input type="hidden" id="epId">
+        <label class="f">Name</label>
+        <input id="fName" placeholder="e.g. production-rag">
+        <label class="f">Provider</label>
+        <select id="fType">
+          <option value="rag">RAG application</option>
+          <option value="openai">OpenAI</option>
+          <option value="claude">Claude</option>
+        </select>
+        <label class="f" id="urlLabel">RAG API endpoint URL</label>
+        <input id="fUrl" placeholder="https://your-rag-app.example/query">
+        <div class="row2" id="credRow" style="display:none">
+          <div><label class="f">API key</label>
+          <input id="fKey" type="password" placeholder="sk-…"></div>
+          <div><label class="f">Model</label>
+          <input id="fModel" placeholder="gpt-4o-mini"></div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn primary" id="saveEp">Add doll</button>
+        </div>
+        <button class="linklike" id="cancelEdit" style="display:none">cancel edit</button>
+        <p class="note" id="capNote" hidden style="margin-top:12px">All 10 slots are filled. Remove a doll to add another.</p>
+        <p class="note" style="margin-top:12px">A RAG doll only needs its endpoint. The server posts <b>{"query","top_k"}</b> and reads <b>answer</b> and <b>contexts</b> from the JSON. OpenAI and Claude also need a key and a model. Built-in stand-ins: <b>/stubs/grounded/query</b> and <b>/stubs/partial/query</b>.</p>
+      </aside>
+    </div>
+  </section>
+
+  <section class="sec" id="sec-data">
+    <div class="sec-h">
+      <span class="secnum">02</span><h2>Evidence set</h2>
+      <span class="hmeta" id="dsLabel">BUNDLED EXCERPT · 14 TOPICS</span>
+    </div>
+    <div class="cols">
+      <div>
+        <p class="note">TREC RAG (2024 · RAGTime) runs <b>50 topics from MS MARCO v2.1</b> against the <b>KILT Wikipedia corpus</b> (~5.9M docs), asking systems for top-5 passages plus a ≤400-token answer. The bundled set below is a <b>format-compatible excerpt</b> for smoke tests — for the official topics and qrels, download them from <span class="acc">trec-rag.github.io</span> and import here.</p>
+        <label class="f">Retrieved passages per query (K)</label>
+        <div class="krow"><input type="range" id="kSlider" min="1" max="10" value="5"><span class="kv" id="kVal">K = 5</span></div>
+        <label class="f">Max answer tokens</label>
+        <input type="number" id="fMaxTok" value="400" min="40" max="2000" style="max-width:140px">
+        <label class="f">Run profiles</label>
+        <div class="presets">
+          <button class="btn mini" data-k="5" data-tok="400">TREC RAG ’24</button>
+          <button class="btn mini" data-k="3" data-tok="200">Quick smoke</button>
+          <button class="btn mini" data-k="10" data-tok="600">Deep recall</button>
+        </div>
+        <label class="f">Import official topics <span style="color:var(--faint)">(.tsv / .json)</span></label>
+        <input type="file" id="topicsFile" accept=".tsv,.txt,.json" style="font-size:11px">
+        <label class="f">Import qrels <span style="color:var(--faint)">(optional — enables Recall@K · MRR · nDCG)</span></label>
+        <input type="file" id="qrelsFile" accept=".tsv,.txt,.json" style="font-size:11px">
+        <p class="note" id="qrelsInfo" style="margin-top:8px">No qrels loaded — retrieval-quality metrics will use lexical proxies only.</p>
+        <label class="f">Import reference answers <span style="color:var(--faint)">(optional — context precision, context recall, correctness, completeness)</span></label>
+        <input type="file" id="refsFile" accept=".json,.tsv,.txt" style="font-size:11px">
+        <p class="note" id="refsInfo" style="margin-top:8px">No reference answers — those columns stay hidden. This file is separate from qrels.</p>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span class="tcount" id="tCount"></span>
+          <label class="note" style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" class="cb" id="allTopics" checked> include all in run</label>
+        </div>
+        <div class="topics-box"><table class="ledger"><thead><tr><th style="width:34px"></th><th style="width:70px">QID</th><th>Query</th></tr></thead><tbody id="topicsBody"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="sec-run">
+    <div class="sec-h">
+      <span class="secnum">03</span><h2>Harness</h2>
+      <span class="hmeta">Every doll runs every selected topic — cross-product</span>
+    </div>
+    <div class="harness">
+      <div>
+        <label class="f">Judge model <span style="color:var(--faint)">(LLM-as-a-Judge)</span></label>
+        <select id="judgeSel"></select>
+        <p class="note" style="margin:8px 0 0">Scores faithfulness · relevance · groundedness (1–5). Pick any registered doll; a raw-LLM judge is fine.</p>
+        <label class="f" style="margin-top:16px">OpenAI key for Ragas, DeepEval, and BenchmarkQED</label>
+        <input id="fJudgeKey" type="password" placeholder="sk-… or offline-demo" autocomplete="off">
+        <label class="f">Judge model</label>
+        <input id="fJudgeModel" placeholder="gpt-4o-mini" value="gpt-4o-mini">
+        <label class="f">Extra scorers</label>
+        <label class="note" style="display:flex;gap:8px;align-items:center"><input type="checkbox" class="cb" id="scRagas" checked> Ragas · faithfulness, answer relevancy, and context metrics when a reference is loaded</label>
+        <label class="note" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" class="cb" id="scDeep"> DeepEval reasons · same four metrics, shown on the open row</label>
+        <label class="note" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" class="cb" id="scPair" checked> BenchmarkQED pairwise · relevance, comprehensiveness, diversity, empowerment</label>
+        <label class="note" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" class="cb" id="scRef" disabled> BenchmarkQED reference · correctness and completeness</label>
+        <label class="f">BenchmarkQED trials <span style="color:var(--faint)">(even; 1 is raised to 2)</span></label>
+        <input type="number" id="fTrials" value="2" min="1" max="8" step="1" style="max-width:140px">
+        <p class="note" id="callEst" style="margin-top:10px"></p>
+        <label class="f" style="margin-top:16px">Parallel workers</label>
+        <select id="fConc"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>6</option></select>
+        <label class="f">Request timeout (ms)</label>
+        <input type="number" id="fTimeout" value="60000" min="5000" step="5000" style="max-width:160px">
+        <div style="margin-top:22px">
+          <button class="runbtn" id="runBtn"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21"/></svg>Run evaluation</button>
+        </div>
+      </div>
+      <div id="liveBlock">
+        <div class="pbar"><i id="pfill"></i></div>
+        <div class="pstat"><span id="pTxt">0 / 0 tasks</span><span id="elapsed">00:00</span></div>
+        <div class="tracebox"><canvas id="trace" height="120"></canvas>
+          <div class="trace-cap">Live latency trace · tick height ∝ latency (full scale 2.5 s) · × = failed task</div>
+        </div>
+        <div class="log" id="log"><div class="inf">— bench idle —</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="sec-report">
+    <div class="sec-h">
+      <span class="secnum">04</span><h2>Verdict</h2>
+      <span class="hmeta" id="repMeta"></span>
+    </div>
+    <div id="reportBody">
+      <div class="empty-report">
+        <div class="big">No runs recorded — the bench is cold.</div>
+        <div class="sm">Register a doll · select topics · run the harness</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="colo">
+      <span>RAGDoll3 · Companion instrument to AI Governance Series · Post #5 — RAG</span>
+      <span><a class="acc" href="https://github.com/qusai18/ai-eng-bootcamp/blob/2026-10-01-d19q/ragdoll3/README.md" target="_blank" rel="noopener">Instructor guide</a> · <a href="https://github.com/qusai18/ai-eng-bootcamp" target="_blank" rel="noopener">GitHub repo</a></span>
+      <span class="acc">Retrieve · Ground · Verify</span>
+    </div>
+  </footer>
+</div>
+<div id="toasts"></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => 'e' + Math.random().toString(36).slice(2, 9);
+const clampN = (v,a,b) => Math.max(a, Math.min(b, v));
+const fmt = (x,d=2) => (x==null || isNaN(x)) ? '—' : Number(x).toFixed(d);
+const pct = x => (x==null || isNaN(x)) ? '—' : Math.round(x*100) + '%';
+const ms  = x => (x==null || isNaN(x)) ? '—' : (x>=1000 ? (x/1000).toFixed(2)+'s' : Math.round(x)+'ms');
+const median = a => { if(!a.length) return null; const s=[...a].sort((x,y)=>x-y); const m=s.length>>1; return s.length%2? s[m] : (s[m-1]+s[m])/2; };
+
+const MAX_DOLLS = 10;
+const PALETTE = ['#0785f2','#00afaa','#ffc628','#5bcbf5','#00538b','#30f298','#e1085a','#768591','#00a2e0','#414042'];
+
+const BUNDLED_TOPICS = [
+  {qid:'T01', query:'how many players are on a soccer team on the field at one time'},
+  {qid:'T02', query:'what causes the northern lights to occur'},
+  {qid:'T03', query:'what is the difference between a cyclone and a hurricane'},
+  {qid:'T04', query:'who wrote the novel one hundred years of solitude'},
+  {qid:'T05', query:'how long does it take for sunlight to reach the earth'},
+  {qid:'T06', query:'why does water boil at a lower temperature at high altitude'},
+  {qid:'T07', query:'can you see the great wall of china from space'},
+  {qid:'T08', query:'in what year did the berlin wall come down'},
+  {qid:'T09', query:'which organelle is known as the powerhouse of the cell'},
+  {qid:'T10', query:'how does a refrigerator keep food cold'},
+  {qid:'T11', query:'why is the sky blue during the day'},
+  {qid:'T12', query:'what percentage of the human body is water'},
+  {qid:'T13', query:'who flew the first successful powered airplane'},
+  {qid:'T14', query:'what is the largest hot desert in the world'}
+].map(t => ({...t, off:false}));
+
+const state = {
+  endpoints: [], qrels: null, references: {}, running: false, stop: false, run: null,
+  sortKey: null, sortDir: -1, dpKey: null, timer: null,
+  settings: { k:5, maxTok:400, conc:3, timeout:60000, judge:null, judgeKey:'', judgeModel:'gpt-4o-mini', trials:2,
+    ragas:true, deepeval:false, pairwise:true }
+};
+try {
+  const saved = JSON.parse(localStorage.getItem('ragdoll3.v1') || 'null');
+  if (saved) {
+    if (Array.isArray(saved.endpoints)) {
+      state.endpoints = saved.endpoints.slice(0, MAX_DOLLS);
+      state.endpoints.forEach(e => { if (e.type === 'custom') e.type = 'rag'; });
+    }
+    Object.assign(state.settings, saved.settings || {});
+  }
+} catch(e){}
+
+function persist(){
+  try { localStorage.setItem('ragdoll3.v1', JSON.stringify({ endpoints: state.endpoints, settings: state.settings })); } catch(e){}
+}
+
+function toast(msg, kind=''){
+  const t = document.createElement('div');
+  t.className = 'toast ' + kind; t.textContent = msg;
+  $('#toasts').appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = '.4s'; setTimeout(() => t.remove(), 400); }, 3600);
+}
+
+const ic = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const ICONS = {
+  play:  '<polygon points="5 3 19 12 5 21" fill="currentColor" stroke="none"/>',
+  ping:  '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  edit:  '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/>',
+  down:  '<path d="M12 3v12"/><path d="M6 11l6 6 6-6"/><path d="M4 21h16"/>'
+};
+
+function syncDollCap(){
+  const n = state.endpoints.length;
+  const editing = !!$('#epId').value;
+  const full = n >= MAX_DOLLS && !editing;
+  $('#dollCap').textContent = `${n} / ${MAX_DOLLS} DOLLS`;
+  $('#saveEp').disabled = full;
+  $('#capNote').hidden = !full;
+  if (!editing) {
+    $('#formTitle').textContent = n ? 'Add another doll' : 'Add a doll';
+    $('#saveEp').textContent = n ? 'Add another doll' : 'Add doll';
+  }
+}
+function renderEndpoints(){
+  const box = $('#epList');
+  if (!state.endpoints.length){
+    box.innerHTML = '<div class="empty-hint">No dolls yet. Use the form below and click Add doll. Click it again to add another — up to 10. Run evaluation compares every doll on the same topics.</div>';
+    renderJudgeSel(); syncDollCap();
+    if (typeof updateEstimate === 'function') updateEstimate();
+    return;
+  }
+  box.innerHTML = state.endpoints.map(e => `
+    <div class="ep">
+      <span class="sw" style="--c:${e.color}"></span>
+      <div class="idb">
+        <div class="nm">${esc(e.name)}<span class="mdl">${e.type==='claude' ? 'Claude' : e.type==='openai' ? 'OpenAI' : 'RAG'}${e.model ? ' · ' + esc(e.model) : ''}</span></div>
+        <div class="url">${esc(e.url)}</div>
+      </div>
+      <span class="st ${e._st ? (e._st.ok ? 'ok' : 'bad') : ''}"><span class="dot"></span>${
+        e._st ? (e._st.ok ? 'ok · ' + ms(e._st.ms) : 'fail') : 'untested'}</span>
+      <button class="ibtn" data-act="ping" data-id="${e.id}" title="Ping test">${ic(ICONS.ping)}</button>
+      <button class="ibtn" data-act="edit" data-id="${e.id}" title="Edit">${ic(ICONS.edit)}</button>
+      <button class="ibtn danger" data-act="del" data-id="${e.id}" title="Remove">${ic(ICONS.trash)}</button>
+    </div>`).join('');
+  renderJudgeSel();
+  syncDollCap();
+  if (typeof updateEstimate === 'function') updateEstimate();
+}
+
+$('#epList').addEventListener('click', async ev => {
+  const b = ev.target.closest('button[data-act]'); if(!b) return;
+  const ep = state.endpoints.find(e => e.id === b.dataset.id); if(!ep) return;
+  if (b.dataset.act === 'del'){
+    state.endpoints = state.endpoints.filter(e => e.id !== ep.id);
+    if (state.settings.judge === ep.id) state.settings.judge = null;
+    persist(); renderEndpoints(); toast('Doll removed: ' + ep.name);
+  }
+  if (b.dataset.act === 'edit'){
+    $('#epId').value = ep.id; $('#fName').value = ep.name; $('#fType').value = ep.type === 'custom' ? 'rag' : ep.type;
+    $('#fUrl').value = ep.url; $('#fKey').value = ep.key || ''; $('#fModel').value = ep.model || '';
+    applyTypeUI();
+    $('#formTitle').textContent = 'Edit doll'; $('#saveEp').textContent = 'Update doll';
+    $('#cancelEdit').style.display = 'inline';
+    syncDollCap();
+    window.scrollTo({ top: $('#sec-dolls').offsetTop - 10, behavior: 'smooth' });
+  }
+  if (b.dataset.act === 'ping'){
+    b.style.color = 'var(--accent)';
+    try { const r = await ping(ep); ep._st = { ok:true, ms:r }; toast(`Ping OK — ${ep.name} · ${ms(r)}`, 'ok'); }
+    catch(err){ ep._st = { ok:false }; toast('Ping failed — ' + err.message, 'err'); }
+    b.style.color = ''; renderEndpoints();
+  }
+});
+
+const DEFAULT_URLS = new Set(['', 'https://api.openai.com/v1', 'https://api.anthropic.com/v1']);
+const DEFAULT_MODELS = new Set(['', 'gpt-4o-mini', 'claude-sonnet-4-5', 'llama3.1']);
+function applyTypeUI(){
+  const t = $('#fType').value;
+  const rag = t === 'rag';
+  $('#credRow').style.display = rag ? 'none' : '';
+  $('#urlLabel').textContent = rag ? 'RAG API endpoint URL' : 'Base URL';
+  $('#fUrl').placeholder = t === 'openai' ? 'https://api.openai.com/v1' : t === 'claude' ? 'https://api.anthropic.com/v1' : 'https://your-rag-app.example/query';
+  $('#fModel').placeholder = t === 'claude' ? 'claude-sonnet-4-5' : 'gpt-4o-mini';
+  $('#fKey').placeholder = t === 'claude' ? 'sk-ant-…' : 'sk-…';
+}
+$('#fType').addEventListener('change', () => {
+  const prevUrl = $('#fUrl').value.trim();
+  const prevModel = $('#fModel').value.trim();
+  applyTypeUI();
+  const t = $('#fType').value;
+  if (DEFAULT_URLS.has(prevUrl)) $('#fUrl').value = t === 'rag' ? '' : $('#fUrl').placeholder;
+  if (DEFAULT_MODELS.has(prevModel)) $('#fModel').value = t === 'rag' ? '' : $('#fModel').placeholder;
+});
+
+$('#saveEp').addEventListener('click', () => {
+  const name = $('#fName').value.trim(), url = $('#fUrl').value.trim();
+  if (!name) return toast('Give the doll a name.', 'err');
+  if (!url)  return toast('A URL is required.', 'err');
+  const type = $('#fType').value;
+  const data = {
+    name, url, type, key: type === 'rag' ? '' : $('#fKey').value.trim(), model: type === 'rag' ? '' : $('#fModel').value.trim()
+  };
+  const id = $('#epId').value;
+  if (id){
+    const ep = state.endpoints.find(e => e.id === id);
+    Object.assign(ep, data); toast('Doll updated: ' + name, 'ok');
+  } else {
+    if (state.endpoints.length >= MAX_DOLLS)
+      return toast(`This bench holds ${MAX_DOLLS} dolls. Remove one to add another.`, 'err');
+    state.endpoints.push({ id: uid(), color: PALETTE[state.endpoints.length % PALETTE.length], ...data });
+    toast(`Doll registered: ${name} · ${state.endpoints.length} / ${MAX_DOLLS}`, 'ok');
+  }
+  persist(); resetForm(); renderEndpoints();
+});
+
+$('#cancelEdit').addEventListener('click', resetForm);
+function resetForm(){
+  ['epId','fName','fUrl','fKey','fModel'].forEach(id => $('#'+id).value = '');
+  $('#fType').value = 'rag';
+  applyTypeUI();
+  $('#cancelEdit').style.display = 'none';
+  syncDollCap();
+}
+
+let topics = BUNDLED_TOPICS.map(t => ({...t}));
+function renderTopics(){
+  $('#topicsBody').innerHTML = topics.map((t,i) => `
+    <tr><td><input type="checkbox" class="cb tcb" data-i="${i}" ${t.off ? '' : 'checked'}></td>
+    <td>${esc(t.qid)}</td><td class="q">${esc(t.query)}</td></tr>`).join('');
+  const n = topics.filter(t => !t.off).length;
+  $('#tCount').textContent = `${n} / ${topics.length} TOPICS SELECTED`;
+  $('#dsLabel').textContent = (state.dsSrc || 'BUNDLED EXCERPT') + ' · ' + topics.length + ' TOPICS';
+  $('#allTopics').checked = n === topics.length;
+  if (typeof updateEstimate === 'function') updateEstimate();
+}
+$('#topicsBody').addEventListener('change', ev => {
+  if (!ev.target.classList.contains('tcb')) return;
+  topics[+ev.target.dataset.i].off = !ev.target.checked; renderTopics();
+});
+$('#allTopics').addEventListener('change', ev => {
+  topics.forEach(t => t.off = !ev.target.checked); renderTopics();
+});
+
+function parseTopics(text, name){
+  let list = [];
+  try {
+    const j = JSON.parse(text);
+    const arr = Array.isArray(j) ? j : (j.topics || j.instances || []);
+    list = arr.map((it,i) => ({ qid: String(it.qid ?? it.id ?? it.number ?? i+1),
+      query: String(it.query ?? it.text ?? it.title ?? it.content ?? '').trim() })).filter(t => t.query);
+  } catch(e) {
+    text.split(/\r?\n/).forEach((line,i) => {
+      line = line.trim(); if (!line || /^qid\b/i.test(line)) return;
+      const c = line.split('\t');
+      if (c.length >= 2) list.push({ qid: c[0].trim(), query: c.slice(1).join(' ').trim() });
+      else { const m = line.match(/^(\S+)[\s.:]+(.+)$/); list.push(m ? {qid:m[1], query:m[2]} : {qid:String(i+1), query:line}); }
+    });
+  }
+  if (!list.length) return toast('Could not parse any topics from ' + name, 'err');
+  const seen = new Set();
+  list.forEach(t => { while (seen.has(t.qid)) t.qid += 'x'; seen.add(t.qid); t.off = false; });
+  topics = list.slice(0, 300); state.dsSrc = 'IMPORTED · ' + name.toUpperCase();
+  renderTopics(); toast(`Imported ${topics.length} topics from ${name}`, 'ok');
+}
+$('#topicsFile').addEventListener('change', ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  const r = new FileReader(); r.onload = () => parseTopics(r.result, f.name); r.readAsText(f);
+});
+
+function parseQrels(text){
+  const map = {};
+  try {
+    const j = JSON.parse(text);
+    if (Array.isArray(j)) j.forEach(r => { (map[r.qid] ??= {})[String(r.docid)] = +r.rel || 1; });
+    else for (const q in j){ map[q] = {}; for (const d in j[q]) map[q][String(d)] = +j[q][d] || 1; }
+  } catch(e) {
+    text.split(/\r?\n/).forEach(line => {
+      const c = line.trim().split(/\s+/); if (c.length < 3) return;
+      const [qid, , docid, rel] = c.length >= 4 ? c : [c[0], '0', c[1], c[2]];
+      (map[qid] ??= {})[docid] = +rel || 1;
+    });
+  }
+  const n = Object.keys(map).length;
+  if (!n) return toast('Could not parse qrels.', 'err');
+  const lc = {}; for (const q in map) lc[q.toLowerCase()] = map[q];
+  state.qrels = { raw: map, lc };
+  $('#qrelsInfo').innerHTML = `<b>${n} qrels entries loaded</b> — Recall@K, MRR and nDCG will be computed by matching context doc-ids.`;
+  toast(`Qrels loaded: ${n} topics`, 'ok');
+}
+$('#qrelsFile').addEventListener('change', ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  const r = new FileReader(); r.onload = () => parseQrels(r.result); r.readAsText(f);
+});
+
+function parseReferences(text){
+  const map = {};
+  try {
+    const j = JSON.parse(text);
+    const arr = Array.isArray(j) ? j : (j.references || []);
+    arr.forEach(item => {
+      const qid = String(item.qid ?? item.id ?? '');
+      const reference = String(item.reference ?? item.answer ?? '').trim();
+      if (qid && reference) map[qid] = reference;
+    });
+  } catch(e) {
+    text.split(/\r?\n/).forEach(line => {
+      const c = line.trim().split('\t');
+      if (c.length >= 2 && c[0] && c[0].toLowerCase() !== 'qid') map[c[0]] = c.slice(1).join('\t').trim();
+    });
+  }
+  const n = Object.keys(map).length;
+  if (!n) return toast('Could not parse reference answers.', 'err');
+  state.references = map;
+  $('#refsInfo').innerHTML = `<b>${n} reference answers loaded</b> — context precision, context recall, correctness, and completeness can be scored.`;
+  $('#scRef').disabled = false;
+  $('#scRef').checked = true;
+  updateEstimate();
+  toast(`Reference answers loaded: ${n} topics`, 'ok');
+}
+$('#refsFile').addEventListener('change', ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  const r = new FileReader(); r.onload = () => parseReferences(r.result); r.readAsText(f);
+});
+
+$('#kSlider').value = state.settings.k;
+const syncK = () => { state.settings.k = +$('#kSlider').value; $('#kVal').textContent = 'K = ' + state.settings.k; persist(); };
+$('#kSlider').addEventListener('input', syncK); syncK();
+$('#fMaxTok').value = state.settings.maxTok;
+$('#fMaxTok').addEventListener('change', () => { state.settings.maxTok = clampN(+$('#fMaxTok').value||400, 40, 2000); persist(); });
+$('#fConc').value = state.settings.conc;
+$('#fConc').addEventListener('change', () => { state.settings.conc = +$('#fConc').value; persist(); });
+$('#fTimeout').value = state.settings.timeout;
+$('#fTimeout').addEventListener('change', () => { state.settings.timeout = +$('#fTimeout').value || 60000; persist(); });
+$('#fJudgeKey').value = state.settings.judgeKey || '';
+$('#fJudgeModel').value = state.settings.judgeModel || 'gpt-4o-mini';
+$('#fTrials').value = state.settings.trials || 2;
+$('#scRagas').checked = state.settings.ragas !== false;
+$('#scDeep').checked = !!state.settings.deepeval;
+$('#scPair').checked = state.settings.pairwise !== false;
+function saveScorers(){
+  state.settings.judgeKey = $('#fJudgeKey').value.trim();
+  state.settings.judgeModel = $('#fJudgeModel').value.trim() || 'gpt-4o-mini';
+  state.settings.trials = clampN(+$('#fTrials').value || 2, 1, 8);
+  state.settings.ragas = $('#scRagas').checked;
+  state.settings.deepeval = $('#scDeep').checked;
+  state.settings.pairwise = $('#scPair').checked;
+  persist(); updateEstimate();
+}
+['fJudgeKey','fJudgeModel','fTrials'].forEach(id => $('#'+id).addEventListener('change', saveScorers));
+['scRagas','scDeep','scPair','scRef'].forEach(id => $('#'+id).addEventListener('change', saveScorers));
+function evenTrials(){ const n = clampN(+$('#fTrials').value || 2, 1, 8); return n % 2 ? n + 1 : n; }
+function updateEstimate(){
+  const dolls = state.endpoints.length;
+  const n = topics.filter(t => !t.off).length;
+  const trials = evenTrials();
+  const refTopics = topics.filter(t => !t.off && state.references[t.qid]).length;
+  const parts = [];
+  let total = 0;
+  if ($('#scRagas').checked){ const c = dolls * n * 2 + dolls * refTopics * 2; total += c; parts.push(`Ragas ~${c}`); }
+  if ($('#scDeep').checked){ const c = dolls * n * 2 + dolls * refTopics * 2; total += c; parts.push(`DeepEval ~${c}`); }
+  if ($('#scPair').checked && dolls >= 2){ const c = (dolls * (dolls - 1) / 2) * n * 4 * trials; total += c; parts.push(`pairwise ~${c}`); }
+  if ($('#scRef').checked && refTopics){ const c = dolls * refTopics * 2 * trials; total += c; parts.push(`reference ~${c}`); }
+  $('#callEst').textContent = parts.length
+    ? parts.join(' · ') + ` · about ${total} judge calls`
+    : 'Lexical scores only — no extra judge calls.';
+}
+document.querySelectorAll('.presets .btn').forEach(b => b.addEventListener('click', () => {
+  $('#kSlider').value = b.dataset.k; $('#fMaxTok').value = b.dataset.tok;
+  syncK(); state.settings.maxTok = +b.dataset.tok; persist();
+  toast(`Profile set — K=${b.dataset.k}, ≤${b.dataset.tok} answer tokens.`, 'ok');
+}));
+
+function withTimeout(promise, ms){
+  const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms);
+  return { signal: ac.signal, done: () => clearTimeout(t),
+    wrapped: promise(ac.signal).finally(() => clearTimeout(t)) };
+}
+const chatURL = base => {
+  base = base.trim().replace(/\/+$/,'');
+  if (/\/chat\/completions$/.test(base)) return base;
+  if (/\/v\d+$/.test(base)) return base + '/chat/completions';
+  return base + '/v1/chat/completions';
+};
+const claudeURL = base => {
+  base = base.trim().replace(/\/+$/,'');
+  if (/\/messages$/.test(base)) return base;
+  if (/\/v\d+$/.test(base)) return base + '/messages';
+  return base + '/v1/messages';
+};
+
+function pickAnswer(data){
+  if (data == null) return '';
+  if (typeof data === 'string') return data;
+  const direct = data.answer ?? data.response ?? data.output ?? data.result ?? data.text ?? data.completion;
+  if (typeof direct === 'string') return direct;
+  if (data.choices?.[0]?.message?.content) return String(data.choices[0].message.content);
+  if (Array.isArray(data.content)){
+    const bit = data.content.find(c => typeof c?.text === 'string');
+    if (bit) return bit.text;
+  }
+  if (typeof data.message?.content === 'string') return data.message.content;
+  return '';
+}
+function pickContexts(data){
+  const raw = data?.contexts ?? data?.documents ?? data?.passages ?? data?.sources ?? data?.chunks ?? data?.results;
+  if (!Array.isArray(raw)) return [];
+  return raw.map(n => {
+    if (typeof n === 'string') return { id:'', text:n.slice(0, 1600) };
+    const text = n?.text ?? n?.content ?? n?.page_content ?? n?.passage ?? n?.snippet ?? '';
+    const id = n?.id ?? n?.docid ?? n?.doc_id ?? n?.source ?? '';
+    return { id: String(id || ''), text: String(text || '').slice(0, 1600) };
+  }).filter(c => c.text).slice(0, 20);
+}
+
+async function callEndpoint(ep, query){
+  const t0 = performance.now();
+  const headers = { 'Content-Type': 'application/json' };
+  let url, bodyStr;
+  if (ep.type === 'claude'){
+    url = claudeURL(ep.url);
+    if (ep.key) headers['x-api-key'] = ep.key;
+    headers['anthropic-version'] = '2023-06-01';
+    headers['anthropic-dangerous-direct-browser-access'] = 'true';
+    bodyStr = JSON.stringify({ model: ep.model || 'claude-sonnet-4-5', max_tokens: state.settings.maxTok, temperature: 0.2,
+      messages: [{ role:'user', content: query }] });
+  } else if (ep.type === 'openai'){
+    url = chatURL(ep.url);
+    if (ep.key) headers['Authorization'] = 'Bearer ' + ep.key;
+    bodyStr = JSON.stringify({ model: ep.model || 'gpt-4o-mini',
+      messages: [{ role:'user', content: query }],
+      max_tokens: state.settings.maxTok, temperature: 0.2 });
+  } else {
+    url = ep.url;
+    if (ep.key) headers['Authorization'] = 'Bearer ' + ep.key;
+    bodyStr = JSON.stringify({ query, top_k: state.settings.k });
+  }
+  const { wrapped } = withTimeout(sig => fetch(url, {
+    method:'POST', headers, body: bodyStr, signal: sig }), state.settings.timeout);
+  let data;
+  try { const res = await wrapped; if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText.slice(0,40)); data = await res.json(); }
+  catch(e){ if (e.name === 'AbortError') throw new Error('timeout after ' + state.settings.timeout + 'ms'); throw e; }
+
+  const answer = String(pickAnswer(data)).trim();
+  const contexts = (ep.type === 'rag' || ep.type === 'custom') ? pickContexts(data) : [];
+  const tokens = (data?.usage?.completion_tokens || data?.usage?.output_tokens || 0) + (data?.usage?.prompt_tokens || data?.usage?.input_tokens || 0);
+  return { answer, contexts, tokens, latency: performance.now() - t0 };
+}
+
+async function ping(ep){
+  const res = await fetch('/api/ping', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ doll: ep, k: state.settings.k, max_tokens: state.settings.maxTok, timeout_ms: state.settings.timeout })
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'ping failed');
+  return data.latency_ms;
+}
+
+const JUDGE_SYS = 'You are a strict, impartial RAG evaluator. You judge answers using ONLY the provided retrieved contexts as evidence. Respond with a single JSON object and nothing else.';
+function judgePrompt(q, contexts, answer){
+  const ctx = contexts.length
+    ? contexts.slice(0, 6).map((c,i) => `[${i+1}] ${c.text.slice(0, 600)}`).join('\n\n')
+    : 'NO CONTEXTS WERE RETRIEVED. If the answer asserts factual claims without evidence, score faithfulness and groundedness 1 — unless it explicitly says it lacks the information.';
+  return `QUESTION: ${q}
+
+RETRIEVED CONTEXTS:
+${ctx}
+
+ANSWER TO EVALUATE:
+${answer}
+
+Score each dimension from 1 to 5 (integers):
+- faithfulness: 5 = every claim is supported by the contexts; 1 = claims contradict or go beyond the evidence.
+- relevance: 5 = directly and fully answers the question; 1 = does not address it.
+- groundedness: 5 = the specific facts are traceable to the contexts; 1 = no traceable facts.
+
+Also list short quotes of any hallucinated claims (empty array if none).
+
+Return exactly: {"faithfulness": n, "relevance": n, "groundedness": n, "hallucinations": [], "note": "one sentence"}`;
+}
+function parseJudge(txt){
+  const m = String(txt).match(/\{[\s\S]*\}/); if (!m) return null;
+  try {
+    const j = JSON.parse(m[0]);
+    const g = v => { const n = Math.round(Number(v)); return (n >= 1 && n <= 5) ? n : null; };
+    return { faith: g(j.faithfulness), rel: g(j.relevance), gj: g(j.groundedness),
+      hallucinations: Array.isArray(j.hallucinations) ? j.hallucinations.slice(0,5).map(String) : [],
+      note: String(j.note || '') };
+  } catch(e){ return null; }
+}
+async function judgeCall(ep, q, contexts, answer){
+  const prompt = judgePrompt(q, contexts, answer);
+  const headers = { 'Content-Type':'application/json' };
+  let url, body;
+  if (ep.type === 'claude'){
+    url = claudeURL(ep.url);
+    if (ep.key) headers['x-api-key'] = ep.key;
+    headers['anthropic-version'] = '2023-06-01';
+    headers['anthropic-dangerous-direct-browser-access'] = 'true';
+    body = { model: ep.model || 'claude-sonnet-4-5', max_tokens: 300, temperature: 0, system: JUDGE_SYS,
+      messages: [{ role:'user', content: prompt }] };
+  } else if (ep.type === 'openai'){
+    url = chatURL(ep.url);
+    if (ep.key) headers['Authorization'] = 'Bearer ' + ep.key;
+    body = { model: ep.model || 'gpt-4o-mini', temperature: 0, max_tokens: 300,
+      messages: [{ role:'system', content: JUDGE_SYS }, { role:'user', content: prompt }] };
+  } else {
+    const r = await callEndpoint(ep, JUDGE_SYS + '\n\n' + prompt);
+    const j = parseJudge(r.answer);
+    if (!j) throw new Error('judge returned unparseable output');
+    return j;
+  }
+  const { wrapped } = withTimeout(sig => fetch(url, {
+    method:'POST', headers, body: JSON.stringify(body), signal: sig }), 45000);
+  const res = await wrapped;
+  if (!res.ok) throw new Error('judge HTTP ' + res.status);
+  const data = await res.json();
+  const j = parseJudge(pickAnswer(data));
+  if (!j) throw new Error('judge returned unparseable output');
+  return j;
+}
+
+const STOP = new Set('a an the is are was were be been being to of in on at for with and or but if then than that this these those it its as by from can could would should do does did have has had not no nor you your we they he she i what which who whom when where why how also into over under about'.split(' '));
+const tok = s => (String(s).toLowerCase().match(/[a-z0-9][a-z0-9'-]*/g) || []).filter(t => t.length > 2 && !STOP.has(t));
+const nid = s => String(s).trim().toLowerCase().replace(/%0a|\s+/g,'');
+
+function groundLex(answer, contexts){
+  if (!answer || !contexts.length) return null;
+  const sents = answer.split(/(?<=[.!?])\s+|\n+/).map(s => s.trim()).filter(s => s.length >= 12);
+  if (!sents.length) return null;
+  const ctxToks = contexts.map(c => new Set(tok(c.text)));
+  let supported = 0; const unsup = [];
+  for (const s of sents){
+    const st = tok(s); if (!st.length){ supported++; continue; }
+    let best = 0;
+    for (const ct of ctxToks){ const hit = st.filter(t => ct.has(t)).length; best = Math.max(best, hit / st.length); }
+    if (best >= 0.45) supported++; else unsup.push(s);
+  }
+  return { score: supported / sents.length, unsup };
+}
+function citationCov(answer, contexts){
+  if (!answer || !contexts.length) return null;
+  const found = [...answer.matchAll(/\[([^\[\]]{1,48})\]/g)].map(m => m[1]);
+  if (!found.length) return null;
+  const ids = new Set(contexts.map(c => nid(c.id)).filter(Boolean));
+  const cited = new Set();
+  for (const f of found){
+    if (/^\d+$/.test(f.trim())){ const i = +f.trim() - 1; if (contexts[i]) cited.add(nid(contexts[i].id) || '#' + i); }
+    else if (ids.has(nid(f))) cited.add(nid(f));
+  }
+  return cited.size / contexts.length;
+}
+function ctxOverlap(query, contexts){
+  if (!contexts.length) return null;
+  const qt = new Set(tok(query)); if (!qt.size) return null;
+  return contexts.reduce((s,c) => { const ct = new Set(tok(c.text));
+    return s + [...qt].filter(t => ct.has(t)).length / qt.size; }, 0) / contexts.length;
+}
+function rankMetrics(row, qrel){
+  if (!qrel || !row.contexts.length) return { recall:null, mrr:null, ndcg:null };
+  const nq = {}; for (const d in qrel) nq[nid(d)] = qrel[d];
+  const rels = row.contexts.map(c => nq[nid(c.id)] || 0);
+  const R = Object.values(qrel).filter(r => r > 0).length;
+  const k = Math.min(10, rels.length) || 1;
+  const found = rels.filter(r => r > 0).length;
+  const recall = R ? found / R : null;
+  const first = rels.findIndex(r => r > 0);
+  const mrr = first >= 0 ? 1 / (first + 1) : 0;
+  const dcg = rels.slice(0, k).reduce((s,r,i) => s + (r > 0 ? 1 / Math.log2(i + 2) : 0), 0);
+  const nIdeal = Math.min(R, k);
+  const idcg = nIdeal ? Array.from({length:nIdeal}, (_,i) => 1 / Math.log2(i + 2)).reduce((a,b) => a + b, 0) : 0;
+  return { recall, mrr, ndcg: idcg ? dcg / idcg : null };
+}
+
+function renderJudgeSel(){
+  const sel = $('#judgeSel'); const cur = state.settings.judge;
+  sel.innerHTML = '<option value="">— none (lexical metrics only) —</option>' +
+    state.endpoints.map(e => `<option value="${e.id}" ${e.id===cur?'selected':''}>${esc(e.name)} (${esc(e.model||e.type)})</option>`).join('');
+}
+$('#judgeSel').addEventListener('change', () => { state.settings.judge = $('#judgeSel').value || null; persist(); });
+
+function logLine(html){
+  const log = $('#log');
+  if (log.firstChild?.textContent === '— bench idle —') log.innerHTML = '';
+  const d = document.createElement('div');
+  const t = new Date().toTimeString().slice(0,8);
+  d.innerHTML = `<span class="inf">[${t}]</span> ${html}`;
+  log.prepend(d);
+  while (log.children.length > 220) log.lastChild.remove();
+}
+
+async function runTask(run, { e, ti, t }){
+  const ep = state.endpoints.find(x => x.id === e.id);
+  const row = { qid:t.qid, query:t.query, answer:'', contexts:[], latency:0, tokens:0,
+    error:null, judge:null, judgeErr:null, local:{} };
+  try {
+    const r = await callEndpoint(ep, t.query);
+    row.answer = r.answer; row.contexts = r.contexts; row.latency = r.latency; row.tokens = r.tokens;
+  } catch(err){
+    row.error = err.message; row.latency = performance.now() - run._taskT0;
+  }
+  if (!row.error){
+    const g = groundLex(row.answer, row.contexts);
+    row.local.ground = g ? g.score : null; row.local.unsup = g ? g.unsup : [];
+    row.local.cite = citationCov(row.answer, row.contexts);
+    row.local.ctxOvl = ctxOverlap(t.query, row.contexts);
+    const qrel = state.qrels ? (state.qrels.raw[t.qid] || state.qrels.lc[t.qid.toLowerCase()]) : null;
+    Object.assign(row.local, rankMetrics(row, qrel));
+  }
+  if (!row.error && row.answer && run.judge){
+    const jep = state.endpoints.find(x => x.id === run.judge.id);
+    if (jep){
+      try { row.judge = await judgeCall(jep, t.query, row.contexts, row.answer); }
+      catch(err){ row.judgeErr = err.message; }
+    }
+  }
+  run.rows[e.id][ti] = row; run.done++;
+  if (row.error) run.errs++;
+  const tag = row.error ? `<span class="err">× ERR ${esc(row.error).slice(0,70)}</span>`
+    : `<span class="ok">✓</span> ${ms(row.latency)}${row.judge ? ` · judge <span class="jm">${row.judge.faith ?? '·'}/${row.judge.rel ?? '·'}/${row.judge.gj ?? '·'}</span>` : ''}${row.judgeErr ? ` <span class="err">judge: ${esc(row.judgeErr).slice(0,50)}</span>` : ''}`;
+  logLine(`<span class="inf">${esc(e.name)}</span> · ${esc(t.qid)} · ${tag}`);
+  updateProgress(run); drawTrace();
+}
+
+function updateProgress(run){
+  $('#pfill').style.width = (run.done / run.total * 100) + '%';
+  $('#pTxt').textContent = `${run.done} / ${run.total} tasks · ${run.errs} error${run.errs === 1 ? '' : 's'}`;
+}
+function startTimer(){
+  const t0 = performance.now(); stopTimer();
+  state.timer = setInterval(() => {
+    const s = Math.floor((performance.now() - t0) / 1000);
+    $('#elapsed').textContent = String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+  }, 500);
+}
+function stopTimer(){ if (state.timer){ clearInterval(state.timer); state.timer = null; } }
+
+$('#runBtn').addEventListener('click', runEval);
+async function runEval(){
+  if (state.running){ state.stop = true; if (state.abort) state.abort.abort(); return; }
+  const eps = state.endpoints.slice();
+  const active = topics.filter(t => !t.off);
+  if (!eps.length)  return toast('Register at least one doll first.', 'err');
+  if (!active.length) return toast('No topics selected.', 'err');
+  saveScorers();
+  const jep = state.endpoints.find(e => e.id === state.settings.judge) || null;
+  const qrels = [];
+  if (state.qrels){
+    for (const qid in state.qrels.raw) for (const docid in state.qrels.raw[qid])
+      qrels.push({ qid, docid, rel: state.qrels.raw[qid][docid] });
+  }
+  const references = active.filter(t => state.references[t.qid]).map(t => ({ qid:t.qid, reference: state.references[t.qid] }));
+
+  state.running = true; state.stop = false;
+  const btn = $('#runBtn');
+  btn.classList.add('stop');
+  btn.innerHTML = ic('<rect x="6" y="6" width="12" height="12" fill="currentColor" stroke="none"/>') + 'Stop run';
+  $('#liveBlock').style.display = 'block';
+
+  const run = state.run = {
+    ts: Date.now(), k: state.settings.k, judge: jep ? { id:jep.id, name:jep.name, color:jep.color } : null,
+    scorers: { ragas: $('#scRagas').checked, deepeval: $('#scDeep').checked, pairwise: $('#scPair').checked, reference: $('#scRef').checked },
+    eps: eps.map(e => ({ id:e.id, name:e.name, color:e.color })), topics: active.map(t => ({ qid:t.qid, query:t.query })),
+    rows: {}, done:0, total: eps.length * active.length, errs:0, aborted:false
+  };
+  eps.forEach(e => run.rows[e.id] = new Array(active.length).fill(null));
+  sizeTrace(); startTimer();
+  const ac = state.abort = new AbortController();
+  try {
+    const res = await fetch('/api/evaluate', {
+      method:'POST', headers:{'Content-Type':'application/json'}, signal: ac.signal,
+      body: JSON.stringify({
+        dolls: eps, topics: active, qrels, references,
+        k: state.settings.k, max_tokens: state.settings.maxTok, timeout_ms: state.settings.timeout,
+        conc: state.settings.conc,
+        scorers: {
+          judge_id: jep ? jep.id : null,
+          ragas: $('#scRagas').checked, deepeval: $('#scDeep').checked,
+          pairwise: $('#scPair').checked, reference: $('#scRef').checked && references.length > 0,
+          trials: evenTrials(),
+          judge_key: state.settings.judgeKey, judge_model: state.settings.judgeModel
+        }
+      })
+    });
+    if (!res.ok){
+      const detail = await res.text();
+      throw new Error(detail.slice(0, 180) || ('HTTP ' + res.status));
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true){
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream:true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines){
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
+        if (event.type === 'log') logLine(`<span class="inf">${esc(event.text)}</span>`);
+        if (event.type === 'row' && run.rows[event.doll_id]){
+          run.rows[event.doll_id][event.index] = event.row;
+          run.done = event.done; run.errs = event.errs; run.total = event.total;
+          updateProgress(run); drawTrace();
+        }
+        if (event.type === 'done' && event.run){
+          event.run.rows = run.rows;
+          event.run.aborted = state.stop;
+          state.run = event.run;
+        }
+      }
+    }
+  } catch(err){
+    if (err.name === 'AbortError' || state.stop) run.aborted = true;
+    else { logLine(`<span class="err">${esc(err.message)}</span>`); toast(err.message, 'err'); }
+  }
+  run.aborted = state.stop || run.aborted;
+  stopTimer(); state.running = false; state.abort = null;
+  btn.classList.remove('stop');
+  btn.innerHTML = ic(ICONS.play) + 'Run evaluation';
+  const finished = state.run || run;
+  logLine(`<span class="jm">— run ${finished.aborted ? 'aborted' : 'complete'} · ${finished.done}/${finished.total} tasks · ${finished.errs} errors —</span>`);
+  toast(finished.aborted ? 'Run aborted — partial report rendered.' : 'Run complete — verdict is ready below.', finished.aborted ? '' : 'ok');
+  renderReport(finished);
+  $('#sec-report').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+const trace = $('#trace');
+function sizeTrace(){
+  const run = state.run; if (!run) return;
+  const h = Math.max(110, run.eps.length * 46 + 22);
+  const w = trace.clientWidth || 600;
+  const dpr = window.devicePixelRatio || 1;
+  trace.width = w * dpr; trace.height = h * dpr;
+  trace.style.height = h + 'px';
+  const ctx = trace.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+function drawTrace(){
+  const run = state.run; const ctx = trace.getContext('2d');
+  const w = trace.clientWidth, h = trace.height / (window.devicePixelRatio || 1);
+  ctx.clearRect(0, 0, w, h);
+  if (!run) return;
+  const padL = 116, padR = 14, padT = 8, laneH = 46;
+  const plotW = Math.max(40, w - padL - padR);
+  const nT = Math.max(1, run.topics.length - 1);
+  const cursorX = run.total ? padL + (run.done / run.total) * plotW : padL;
+  run.eps.forEach((e, i) => {
+    const y = padT + i * laneH + laneH - 14;
+    ctx.font = '600 10px "IBM Plex Mono", monospace';
+    ctx.fillStyle = '#031d40';
+    ctx.fillText(e.name.length > 17 ? e.name.slice(0, 16) + '…' : e.name, 4, y - 12);
+    ctx.strokeStyle = '#bcbec0'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, y + .5); ctx.lineTo(w - padR, y + .5); ctx.stroke();
+    const rows = run.rows[e.id] || [];
+    rows.forEach((row, ti) => {
+      if (!row) return;
+      const x = padL + (ti / nT) * plotW;
+      if (row.error){
+        ctx.strokeStyle = '#e1085a'; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.moveTo(x - 3.5, y - 3.5); ctx.lineTo(x + 3.5, y + 3.5);
+        ctx.moveTo(x + 3.5, y - 3.5); ctx.lineTo(x - 3.5, y + 3.5); ctx.stroke();
+      } else {
+        const bh = Math.max(2.5, Math.min(34, row.latency / 2500 * 34));
+        ctx.fillStyle = e.color; ctx.fillRect(x - 1.5, y - bh, 3, bh);
+      }
+    });
+  });
+  if (state.running){
+    ctx.strokeStyle = '#0785f2'; ctx.setLineDash([3, 3]); ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(cursorX, 4); ctx.lineTo(cursorX, h - 6); ctx.stroke(); ctx.setLineDash([]);
+  }
+}
+window.addEventListener('resize', () => { sizeTrace(); drawTrace(); });
+
+function computeAgg(run, epId){
+  const rows = (run.rows[epId] || []).filter(Boolean);
+  const ok = rows.filter(r => !r.error);
+  const mean = f => { const v = ok.map(f).filter(x => x != null); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null; };
+  return {
+    n: ok.length, total: rows.length,
+    faith: mean(r => r.judge?.faith), rel: mean(r => r.judge?.rel), gj: mean(r => r.judge?.gj),
+    ground: mean(r => r.local.ground), cite: mean(r => r.local.cite), ctxOvl: mean(r => r.local.ctxOvl),
+    recall: mean(r => r.local.recall), mrr: mean(r => r.local.mrr), ndcg: mean(r => r.local.ndcg),
+    ragasFaith: mean(r => r.ragas?.faithfulness), ragasRel: mean(r => r.ragas?.answer_relevancy),
+    ragasPrec: mean(r => r.ragas?.context_precision), ragasRecall: mean(r => r.ragas?.context_recall),
+    winRel: mean(r => r.qed?.relevance), winComp: mean(r => r.qed?.comprehensiveness),
+    winDiv: mean(r => r.qed?.diversity), winEmp: mean(r => r.qed?.empowerment),
+    correct: mean(r => r.qed?.correctness), complete: mean(r => r.qed?.completeness),
+    p50: median(ok.map(r => r.latency)), tok: mean(r => r.tokens || null)
+  };
+}
+const fmt3 = x => (x==null || isNaN(x)) ? '—' : Number(x).toFixed(3);
+const fmt1 = x => (x==null || isNaN(x)) ? '—' : Number(x).toFixed(1);
+function renderReport(run){
+  const body = $('#reportBody');
+  $('#repMeta').textContent = `RUN ${new Date(run.ts).toLocaleString()} · K=${run.k}${run.judge ? ' · JUDGE: ' + run.judge.name.toUpperCase() : ''}${run.aborted ? ' · ABORTED' : ''}`;
+  const aggs = run.eps.map(e => ({ e, agg: computeAgg(run, e.id) }));
+  const hasJudge = !!run.judge;
+  const hasQrels = aggs.some(a => a.agg.recall != null);
+  const hasRagas = aggs.some(a => a.agg.ragasFaith != null || a.agg.ragasRel != null);
+  const hasCtx = aggs.some(a => a.agg.ragasPrec != null || a.agg.ragasRecall != null);
+  const hasPair = aggs.some(a => a.agg.winRel != null);
+  const hasRefScore = aggs.some(a => a.agg.correct != null || a.agg.complete != null);
+
+  const cols = [
+    { key:'n',     label:'topics ok', fmt:(a)=>`${a.n}/${a.total}`, best:'max' },
+    { key:'faith', label:'faith†',    fmt:a=>fmt(a.faith),    avail:hasJudge, best:'max' },
+    { key:'rel',   label:'relev†',    fmt:a=>fmt(a.rel),      avail:hasJudge, best:'max' },
+    { key:'gj',    label:'ground†',   fmt:a=>fmt(a.gj),       avail:hasJudge, best:'max' },
+    { key:'ground',label:'ground·lex',fmt:a=>pct(a.ground),   best:'max' },
+    { key:'cite',  label:'cite cov',  fmt:a=>pct(a.cite),     best:'max' },
+    { key:'ctxOvl',label:'ctx–q ovl', fmt:a=>pct(a.ctxOvl),   best:'max' },
+    { key:'recall',label:'recall@k‡', fmt:a=>pct(a.recall),   avail:hasQrels, best:'max' },
+    { key:'mrr',   label:'mrr‡',      fmt:a=>fmt(a.mrr),      avail:hasQrels, best:'max' },
+    { key:'ndcg',  label:'ndcg@10‡',  fmt:a=>fmt(a.ndcg),     avail:hasQrels, best:'max' },
+    { key:'ragasFaith', label:'faith·ragas', fmt:a=>fmt3(a.ragasFaith), avail:hasRagas, best:'max' },
+    { key:'ragasRel', label:'relev·ragas', fmt:a=>fmt3(a.ragasRel), avail:hasRagas, best:'max' },
+    { key:'ragasPrec', label:'ctx prec', fmt:a=>fmt3(a.ragasPrec), avail:hasCtx, best:'max' },
+    { key:'ragasRecall', label:'ctx recall', fmt:a=>fmt3(a.ragasRecall), avail:hasCtx, best:'max' },
+    { key:'winRel', label:'win relev', fmt:a=>pct(a.winRel), avail:hasPair, best:'max' },
+    { key:'winComp', label:'win comp', fmt:a=>pct(a.winComp), avail:hasPair, best:'max' },
+    { key:'winDiv', label:'win div', fmt:a=>pct(a.winDiv), avail:hasPair, best:'max' },
+    { key:'winEmp', label:'win emp', fmt:a=>pct(a.winEmp), avail:hasPair, best:'max' },
+    { key:'correct', label:'correct', fmt:a=>fmt1(a.correct), avail:hasRefScore, best:'max' },
+    { key:'complete', label:'complete', fmt:a=>fmt1(a.complete), avail:hasRefScore, best:'max' },
+    { key:'p50',   label:'p50 lat',   fmt:a=>ms(a.p50),       best:'min' },
+    { key:'tok',   label:'tok/q',     fmt:a=>a.tok==null?'—':Math.round(a.tok), best:'min' }
+  ].filter(c => c.avail !== false);
+
+  if (!state.sortKey || !cols.some(c => c.key === state.sortKey))
+    state.sortKey = hasJudge ? 'faith' : (hasQrels ? 'ndcg' : (aggs.some(a=>a.agg.ground!=null) ? 'ground' : 'n'));
+  const col = cols.find(c => c.key === state.sortKey);
+  const val = a => a.agg[state.sortKey];
+  const sorted = [...aggs].sort((x,y) => {
+    const vx = val(x), vy = val(y);
+    if (vx == null && vy == null) return 0; if (vx == null) return 1; if (vy == null) return -1;
+    return (state.sortKey === 'p50' || state.sortKey === 'tok') ? vx - vy : vy - vx;
+  });
+  const bestVal = col?.best ? (() => {
+    const vs = aggs.map(a => val(a)).filter(v => v != null);
+    return vs.length ? (col.best === 'min' ? Math.min(...vs) : Math.max(...vs)) : null;
+  })() : null;
+
+  body.innerHTML = `
+    <table class="agg"><thead><tr>
+      <th>endpoint</th>
+      ${cols.map(c => `<th data-key="${c.key}" class="${c.key===state.sortKey?'sorted':''}">${c.label}${c.key===state.sortKey?' ↓':''}</th>`).join('')}
+    </tr></thead><tbody>
+    ${sorted.map(a => `<tr>
+      <td><span class="epname"><span class="sw" style="--c:${a.e.color}"></span>${esc(a.e.name)}</span></td>
+      ${cols.map(c => {
+        const v = a.agg[c.key]; const isBest = bestVal != null && v != null && v === bestVal && cols.length > 2;
+        return `<td class="${v==null?'nul':''} ${isBest?'best':''}">${c.fmt(a.agg)}</td>`;
+      }).join('')}
+    </tr>`).join('')}
+    </tbody></table>
+    <p class="note" style="margin-top:10px">† LLM-as-a-Judge (1–5) · ‡ from imported qrels · faith·ragas and relev·ragas are Ragas scores in [0, 1] · ctx prec and ctx recall appear only for topics with a reference answer · win columns are BenchmarkQED pairwise rates · correct and complete are reference scores on a 1–10 scale, and only for topics that have a reference · click a column header to re-rank.</p>
+    <div class="dp-tabs" id="dpTabs"></div>
+    <svg class="dp" id="dpViz"></svg>
+    <div id="drill"></div>
+    <div class="exp-row">
+      <button class="btn" id="expJson">${ic(ICONS.down)} Export JSON</button>
+      <button class="btn" id="expCsv">${ic(ICONS.down)} Export CSV</button>
+      <button class="btn" id="expMd">${ic(ICONS.down)} Export Markdown</button>
+    </div>
+    <details class="method"><summary>How the verdict is computed</summary><div class="body">
+      <p><b>Retrieval evaluators.</b> With qrels loaded, contexts are matched to judged doc-ids (ids normalized, KILT-style ids tolerated) and scored with Recall@K, MRR and binary nDCG@10. Without qrels, only the query–context overlap proxy is shown.</p>
+      <p><b>Groundedness (lexical).</b> The answer is split into sentences; each is supported if its content tokens overlap any retrieved passage at ≥ 0.45 containment. Unsupported sentences are underlined in red in the drill-down.</p>
+      <p><b>Citation coverage.</b> [n]-style or [docid]-style citations in the answer are resolved against retrieved contexts; coverage = unique cited / retrieved.</p>
+      <p><b>Judge evaluator.</b> Your selected doll receives the question, up to six 600-char context excerpts and the answer, and must return strict JSON with faithfulness / relevance / groundedness (1–5) plus quoted hallucinations. Unparseable judgments are logged, never silently dropped.</p>
+      <p><b>Ragas.</b> Faithfulness and answer relevancy score every successful answer. Context precision and context recall run only on topics that have an imported reference answer, so a one-topic reference moves only that topic into the column mean.</p>
+      <p><b>DeepEval.</b> The same four metrics, with the judge's reason on the open row. Context precision and context recall are omitted when that topic has no reference.</p>
+      <p><b>BenchmarkQED.</b> Pairwise win rates compare dolls on relevance, comprehensiveness, diversity, and empowerment. Correctness and completeness compare each answer with the imported reference on a 1–10 scale. The trial count must be even; an odd count is raised by one. These columns use the libraries when an OpenAI key is set. The key <span class="acc">offline-demo</span> fills them with lexical stand-ins so the table can be checked without a model.</p>
+      <p><b>Failures count.</b> Timeouts and HTTP errors are recorded per task and lower the "topics ok" tally — a doll that cannot finish is a doll that fails.</p>
+    </div></details>`;
+
+  const dpOpts = [
+    ...(hasJudge ? [{k:'faith',l:'Faithfulness'},{k:'rel',l:'Relevance'},{k:'gj',l:'Groundedness · judge'}] : []),
+    { k:'ground', l:'Groundedness · lex' }, { k:'ctxOvl', l:'Context–query overlap' },
+    ...(hasQrels ? [{k:'recall',l:'Recall@K'},{k:'ndcg',l:'nDCG@10'}] : []),
+    ...(hasRagas ? [{k:'ragasFaith',l:'Ragas faithfulness'},{k:'ragasRel',l:'Ragas relevancy'}] : []),
+    ...(hasCtx ? [{k:'ragasPrec',l:'Context precision'},{k:'ragasRecall',l:'Context recall'}] : []),
+    ...(hasPair ? [{k:'winRel',l:'Win · relevance'}] : []),
+    ...(hasRefScore ? [{k:'correct',l:'Correctness'}] : []),
+    { k:'p50', l:'Latency p50' }
+  ];
+  if (!state.dpKey || !dpOpts.some(o => o.k === state.dpKey)) state.dpKey = dpOpts[0].k;
+  $('#dpTabs').innerHTML = dpOpts.map(o => `<button class="dp-tab ${o.k===state.dpKey?'on':''}" data-k="${o.k}">${o.l}</button>`).join('');
+  $('#dpTabs').addEventListener('click', ev => {
+    const b = ev.target.closest('.dp-tab'); if (!b) return;
+    state.dpKey = b.dataset.k; renderReport(run);
+  });
+  drawDotplot(sorted, state.dpKey);
+
+  $('#drill').innerHTML = sorted.map(a => {
+    const rows = (run.rows[a.e.id] || []);
+    const errs = rows.filter(r => r && r.error).length;
+    return `<details class="dd"><summary><span class="chev">▸</span>
+      <span class="nm"><span class="sw" style="--c:${a.e.color}"></span>${esc(a.e.name)}</span>
+      <span class="sum">${a.agg.n}/${a.agg.total} ok${errs ? ` · <span style="color:var(--red)">${errs} errors</span>` : ''}${a.agg.faith!=null?` · judge ${fmt(a.agg.faith)}`:''}${a.agg.p50!=null?` · p50 ${ms(a.agg.p50)}`:''}</span></summary>
+      <div>${rows.map((r, ti) => r ? trowHTML(r, ti) : '').join('')}</div></details>`;
+  }).join('');
+
+  bindExports(run);
+  bindTableSort(run);
+}
+function trowHTML(r, ti){
+  const g = r.error ? '<span class="g err">×</span>' : '<span class="g ok">·</span>';
+  return `<div class="trow" data-i="${ti}">${g}<span class="qid">${esc(r.qid)}</span>
+    <span class="qq">${esc(r.error || r.query)}</span>
+    <span class="ms">${r.error ? 'failed' : ms(r.latency) + (r.judge ? ` · ${r.judge.faith}/${r.judge.rel}/${r.judge.gj}` : '')}</span></div>
+    <div class="tdetail" data-i="${ti}">
+      ${r.error ? `<div class="errtxt">TASK ERROR — ${esc(r.error)}</div>` : `
+      <div class="tlabel">Answer</div>
+      <div class="ans">${markUnsup(r.answer, r.local.unsup || [])}</div>
+      ${r.judge ? `<div class="tlabel">Judge</div>
+        <div class="jline"><span class="sc">faith ${r.judge.faith ?? '—'}</span> · <span class="sc">relev ${r.judge.rel ?? '—'}</span> · <span class="sc">ground ${r.judge.gj ?? '—'}</span> — ${esc(r.judge.note)}</div>
+        ${r.judge.hallucinations.length ? r.judge.hallucinations.map(h => `<div class="hallic">× “${esc(h)}”</div>`).join('') : ''}`
+        : (r.judgeErr ? `<div class="tlabel">Judge</div><div class="errtxt">${esc(r.judgeErr)}</div>` : '')}
+      ${metricHTML(r)}
+      ${deepevalHTML(r)}
+      ${r.contexts.length ? `<div class="tlabel">Retrieved contexts (${r.contexts.length})</div>
+        ${r.contexts.map((c,i) => `<div class="ctx"><span class="cid">[${i+1}]${c.id ? ' ' + esc(c.id) : ''}</span> — ${esc(c.text.slice(0, 320))}${c.text.length > 320 ? '…' : ''}</div>`).join('')}`
+        : '<div class="tlabel">Retrieved contexts</div><div class="note">none returned by this endpoint</div>'}`}
+    </div>`;
+}
+function metricHTML(r){
+  const bits = [];
+  if (r.ragas){
+    const show = (label, value) => value == null ? '' : `<span class="sc">${label} ${fmt3(value)}</span>`;
+    const line = [show('faith', r.ragas.faithfulness), show('relev', r.ragas.answer_relevancy), show('ctx prec', r.ragas.context_precision), show('ctx recall', r.ragas.context_recall)].filter(Boolean).join(' · ');
+    if (line) bits.push(`<div class="tlabel">Ragas</div><div class="jline">${line}</div>`);
+  }
+  if (r.qed && (r.qed.correctness != null || r.qed.completeness != null || r.qed.relevance != null)){
+    const show = (label, value, kind) => value == null ? '' : `<span class="sc">${label} ${kind === 'pct' ? pct(value) : fmt1(value)}</span>`;
+    const line = [show('win relev', r.qed.relevance, 'pct'), show('correct', r.qed.correctness), show('complete', r.qed.completeness)].filter(Boolean).join(' · ');
+    if (line) bits.push(`<div class="tlabel">BenchmarkQED</div><div class="jline">${line}</div>`);
+  }
+  return bits.join('');
+}
+function deepevalHTML(r){
+  const scored = r.deepeval;
+  if (!scored) return '';
+  const lines = Object.entries(scored).map(([name, item]) => {
+    const mark = item.ok ? 'ok' : 'err';
+    return `<div class="jline"><span class="sc ${mark}">${esc(name)} ${item.score==null?'—':fmt3(item.score)}</span> <span class="inf">(threshold ${fmt(item.threshold)})</span> — ${esc(item.reason || '')}</div>`;
+  }).join('');
+  return `<div class="tlabel">DeepEval</div>${lines}`;
+}
+function markUnsup(ans, unsup){
+  let html = esc(ans);
+  unsup.forEach(s => { html = html.replace(esc(s), `<mark class="unsup">${esc(s)}</mark>`); });
+  return html.replace(/\n/g, '<br>');
+}
+document.addEventListener('click', ev => {
+  const row = ev.target.closest('.trow'); if (!row) return;
+  const det = row.nextElementSibling;
+  if (det?.classList.contains('tdetail')) det.classList.toggle('open');
+});
+
+function drawDotplot(sorted, key){
+  const svg = $('#dpViz'); if (!svg) return;
+  const rows = sorted.map(a => ({ name:a.e.name, color:a.e.color, v:a.agg[key] })).filter(r => r.v != null);
+  const isMs = key === 'p50';
+  const isTen = key === 'correct' || key === 'complete';
+  const isUnit = ['ragasFaith','ragasRel','ragasPrec','ragasRecall','winRel','ground','ctxOvl','recall','ndcg'].includes(key);
+  const maxV = isMs ? Math.max(...rows.map(r => r.v), 1) * 1.08 : (isTen ? 10 : (isUnit ? 1 : 5));
+  const W = 720, rowH = 34, H = Math.max(80, rows.length * rowH + 40);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.style.height = 'auto';
+  const labX = 150, x0 = 158, x1 = W - 70;
+  const X = v => x0 + (v / maxV) * (x1 - x0);
+  const ticks = isMs ? 5 : 6;
+  const fmtV = v => isMs ? ms(v) : fmt(v, 2);
+  let s = '';
+  for (let i = 0; i < ticks; i++){
+    const v = maxV / (ticks - 1) * i, x = X(v);
+    s += `<line x1="${x}" y1="14" x2="${x}" y2="${H - 26}" stroke="#d8e0e3" stroke-width="1"/>
+          <text x="${x}" y="${H - 8}" font-family="IBM Plex Mono" font-size="9" fill="#768591" text-anchor="middle">${isMs ? ms(v) : fmt(v,1)}</text>`;
+  }
+  if (!rows.length) s += `<text x="${W/2}" y="${H/2}" font-family="IBM Plex Mono" font-size="11" fill="#768591" text-anchor="middle">no data for this metric — every value is null</text>`;
+  rows.forEach((r, i) => {
+    const y = 30 + i * rowH;
+    s += `<text x="${labX}" y="${y + 4}" font-family="IBM Plex Mono" font-size="11" font-weight="600" fill="#031d40" text-anchor="end">${esc(r.name.slice(0,20))}</text>
+          <line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="#e7eef3" stroke-width="6"/>
+          <circle cx="${X(r.v)}" cy="${y}" r="5.5" fill="${r.color}" stroke="#031d40" stroke-width="1.4"/>
+          <text x="${X(r.v) + 10}" y="${y + 4}" font-family="IBM Plex Mono" font-size="10" fill="#414042">${fmtV(r.v)}</text>`;
+  });
+  svg.innerHTML = s;
+}
+function bindTableSort(run){
+  document.querySelectorAll('.agg th[data-key]').forEach(th =>
+    th.addEventListener('click', () => {
+      state.sortKey = th.dataset.key; renderReport(run);
+      $('#sec-report').scrollIntoView({ block:'start' });
+    }));
+}
+
+function download(name, text, mime){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: mime }));
+  a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+const csvCell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+function bindExports(run){
+  $('#expJson').onclick = () => download('ragdoll3-run.json', JSON.stringify(run, null, 2), 'application/json');
+  $('#expCsv').onclick = () => {
+    const head = ['endpoint','qid','query','answer','faith','relevance','grounded_judge','grounded_lex','cite_cov','recall_at_k','mrr','ndcg','ragas_faith','ragas_rel','ctx_precision','ctx_recall','win_relevance','correctness','completeness','latency_ms','tokens','error'];
+    const lines = [head.join(',')];
+    for (const e of run.eps) for (const r of (run.rows[e.id] || [])){
+      if (!r) continue;
+      lines.push([e.name, r.qid, r.query, r.answer, r.judge?.faith ?? '', r.judge?.rel ?? '', r.judge?.gj ?? '',
+        r.local.ground ?? '', r.local.cite ?? '', r.local.recall ?? '', r.local.mrr ?? '', r.local.ndcg ?? '',
+        r.ragas?.faithfulness ?? '', r.ragas?.answer_relevancy ?? '', r.ragas?.context_precision ?? '', r.ragas?.context_recall ?? '',
+        r.qed?.relevance ?? '', r.qed?.correctness ?? '', r.qed?.completeness ?? '',
+        Math.round(r.latency), r.tokens, r.error || ''].map(csvCell).join(','));
+    }
+    download('ragdoll3-run.csv', lines.join('\n'), 'text/csv');
+  };
+  $('#expMd').onclick = () => {
+    const aggs = run.eps.map(e => ({ e, agg: computeAgg(run, e.id) }));
+    let md = `# RAGDoll3 — run ${new Date(run.ts).toISOString()}\n\nK=${run.k} · judge: ${run.judge?.name || 'none'} · ${run.done}/${run.total} tasks\n\n`;
+    md += '| endpoint | topics ok | faith·ragas | relev·ragas | ctx prec | win relev | correct | ground·lex | p50 |\n|---|---|---|---|---|---|---|---|---|\n';
+    for (const a of aggs) md += `| ${a.e.name} | ${a.agg.n}/${a.agg.total} | ${fmt3(a.agg.ragasFaith)} | ${fmt3(a.agg.ragasRel)} | ${fmt3(a.agg.ragasPrec)} | ${pct(a.agg.winRel)} | ${fmt1(a.agg.correct)} | ${pct(a.agg.ground)} | ${ms(a.agg.p50)} |\n`;
+    download('ragdoll3-report.md', md, 'text/markdown');
+  };
+}
+
+renderEndpoints(); renderTopics(); renderJudgeSel(); drawTrace();
+</script>
+</body>
+</html>
