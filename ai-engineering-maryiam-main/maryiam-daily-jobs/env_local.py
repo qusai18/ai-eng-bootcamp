@@ -5,7 +5,15 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+def _repo_root() -> Path:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / ".env").is_file() or (parent / ".git").exists():
+            return parent
+    return here.parent
+
+
+REPO_ROOT = _repo_root()
 ENV_PATH = REPO_ROOT / ".env"
 
 
