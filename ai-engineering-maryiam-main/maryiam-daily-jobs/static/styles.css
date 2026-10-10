@@ -99,6 +99,8 @@ h2 { margin: 0 0 8px; font-size: 1.1rem; font-family: var(--display); }
 .section-head { margin-bottom: 8px; }
 #batchMeta { font-family: var(--sans); font-size: 0.85rem; color: var(--muted); font-weight: 500; }
 
+.board-status { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.board-status .pill.warn-pill { background: var(--warn-soft); color: var(--warn); border-color: #ead8c8; }
 .board-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .board-chip {
   display: inline-flex;
@@ -122,7 +124,23 @@ h2 { margin: 0 0 8px; font-size: 1.1rem; font-family: var(--display); }
   padding: 14px 14px 12px;
   background: #fbfdfe;
 }
-.job.done { opacity: 0.72; background: var(--ok-soft); }
+.job.applied {
+  background: #e5f6ec;
+  border-color: #1f7a45;
+  box-shadow: inset 5px 0 0 #1f7a45;
+}
+.job.skipped { background: #f4f5f4; border-color: #c9d0cb; }
+.applied-flag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #1f7a45;
+  color: #fff;
+}
 .job-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
 .job h3 { margin: 0 0 4px; font-size: 1.05rem; }
 .meta { color: var(--muted); font-size: 0.86rem; }
@@ -197,6 +215,7 @@ h2 { margin: 0 0 8px; font-size: 1.1rem; font-family: var(--display); }
   color: var(--accent);
   text-align: center;
 }
+.badge.applied { background: #1f7a45; color: #fff; }
 .badge.skipped { background: #eee; color: #666; }
 .badge.interviewing { background: var(--warn-soft); color: var(--warn); }
 .hist a { color: var(--accent-2); }

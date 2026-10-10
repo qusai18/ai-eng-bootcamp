@@ -38,6 +38,22 @@ function renderKpis(kpis) {
   `;
 }
 
+function renderBoardStatus(jobs) {
+  const el = document.getElementById("boardStatus");
+  if (!el) return;
+  const counts = { Indeed: 0, Dice: 0, Monster: 0, CareerBuilder: 0 };
+  for (const job of jobs || []) {
+    const board = job.board || job.source;
+    if (board in counts) counts[board] += 1;
+  }
+  el.innerHTML = Object.entries(counts)
+    .map(([name, count]) => {
+      if (count > 0) return `<span class="pill ok-pill">${escapeHtml(name)} · ${count}</span>`;
+      return `<span class="pill warn-pill">${escapeHtml(name)} · no cards, site blocked the fetch</span>`;
+    })
+    .join("");
+}
+
 function renderBoards(boards) {
   const el = document.getElementById("boardLinks");
   el.innerHTML = (boards || [])
@@ -51,12 +67,14 @@ function renderBoards(boards) {
 function renderJobs(jobs) {
   const el = document.getElementById("jobList");
   if (!jobs || !jobs.length) {
-    el.innerHTML = `<div class="empty">No verified live remote BA roles in today’s pool. Hit Refresh pool or open the board chips above.</div>`;
+    el.innerHTML = `<div class="empty">No matching roles in today’s batch yet. Use Refresh pool, or open a board search above.</div>`;
     return;
   }
   el.innerHTML = jobs
     .map((job) => {
-      const done = job.applicationStatus === "applied" || job.applicationStatus === "skipped";
+      const applied = job.applicationStatus === "applied";
+      const skipped = job.applicationStatus === "skipped";
+      const done = applied || skipped;
       const board = job.board || job.source || "Other";
       const reasons = (job.reasons || []).map((r) => `<span class="pill">${escapeHtml(r)}</span>`).join("");
       const verified = job.linkStatus === "verified"
@@ -65,10 +83,11 @@ function renderJobs(jobs) {
           ? `<span class="pill">Link unchecked</span>`
           : "";
       return `
-      <article class="job ${done ? "done" : ""}" data-id="${escapeHtml(job.id)}">
+      <article class="job ${applied ? "applied" : ""} ${skipped ? "skipped" : ""}" data-id="${escapeHtml(job.id)}">
         <div class="job-top">
           <div>
             <div class="board-line">
+              ${applied ? `<span class="applied-flag">Applied</span>` : ""}
               <span class="board-badge" title="Job board / ATS">${escapeHtml(board)}</span>
               ${verified}
             </div>
@@ -80,10 +99,9 @@ function renderJobs(jobs) {
         <div class="reasons">${reasons}</div>
         <p class="desc">${escapeHtml(job.description || "No description preview.")}</p>
         <div class="job-actions">
-          <button type="button" class="btn small ok" data-action="apply" ${done ? "disabled" : ""}>Apply on ${escapeHtml(board)}</button>
-          <button type="button" class="btn small warn" data-action="skip" ${done ? "disabled" : ""}>Skip</button>
+          <button type="button" class="btn small ok" data-action="apply" ${done ? "disabled" : ""}>${applied ? "Applied" : `Apply on ${escapeHtml(board)}`}</button>
+          <button type="button" class="btn small warn" data-action="skip" ${done ? "disabled" : ""}>${skipped ? "Skipped" : "Skip"}</button>
           <a class="btn small ghost" style="color:var(--accent-2);border:1px solid var(--line);text-decoration:none" href="${escapeHtml(job.url)}" target="_blank" rel="noopener">Open on ${escapeHtml(board)}</a>
-          ${job.applicationStatus ? `<span class="pill">Status: ${escapeHtml(job.applicationStatus)}</span>` : ""}
         </div>
       </article>`;
     })
@@ -125,22 +143,41 @@ async function copyBlurb() {
   setTimeout(() => (btn.textContent = prev), 1200);
 }
 
+let pollTimer = null;
+
 async function loadDaily(force = false) {
-  document.getElementById("jobList").innerHTML = `<div class="loading">Loading today’s roles…</div>`;
+  const list = document.getElementById("jobList");
+  if (!state.daily) {
+    list.innerHTML = `<div class="loading">Loading today’s roles…</div>`;
+  }
   const path = force ? "/api/jobs/daily?force=1" : "/api/jobs/daily";
   const data = await api(path);
   state.daily = data;
   state.blurb = data.coverBlurb || "";
+  document.title = "My Daily Jobs";
   if (data.candidate) {
-    document.getElementById("candidateName").textContent = data.candidate.name;
+    document.getElementById("candidateName").textContent = data.candidate.name || "Yusuf Hameed";
     document.getElementById("candidateHeadline").textContent =
-      data.candidate.headline || "Business Analyst · Fully remote";
+      data.candidate.headline || "Business, systems, data, and QA analyst · Columbia, MD";
   }
-  document.getElementById("batchMeta").textContent =
-    `· ${data.date} · pool ${data.poolSize} · remaining ${data.remaining}`;
+  const refreshing = Boolean(data.refreshing);
+  document.getElementById("batchMeta").textContent = refreshing
+    ? `· ${data.date || ""} · checking the boards`
+    : `· ${data.date || ""} · pool ${data.poolSize ?? 0} · remaining ${data.remaining ?? 0}`;
   renderKpis(data.kpis);
   renderBoards(data.boards);
-  renderJobs(data.jobs);
+  renderBoardStatus(data.jobs);
+  if (refreshing && !(data.jobs || []).length) {
+    list.innerHTML = `<div class="loading">Checking Indeed, Dice, Monster, and CareerBuilder…</div>`;
+  } else if (data.error && !(data.jobs || []).length) {
+    list.innerHTML = `<div class="empty">Could not refresh the batch: ${escapeHtml(data.error)}</div>`;
+  } else {
+    renderJobs(data.jobs);
+  }
+  if (refreshing) {
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(() => loadDaily(false).catch(() => {}), 4000);
+  }
   await renderHistory();
 }
 
@@ -188,12 +225,19 @@ document.getElementById("jobList").addEventListener("click", async (e) => {
   }
 });
 
-document.getElementById("applyForm").addEventListener("close", async () => {
+document.getElementById("confirmApplied").addEventListener("click", () => {
+  state.confirmApplied = true;
+});
+
+document.getElementById("applyDialog").addEventListener("close", async () => {
   const dialog = document.getElementById("applyDialog");
-  const value = dialog.returnValue;
   const job = state.pendingJob;
+  const applied = state.confirmApplied || dialog.returnValue === "applied";
   state.pendingJob = null;
-  if (value === "applied" && job) {
+  state.confirmApplied = false;
+  if (applied && job) {
+    job.applicationStatus = "applied";
+    if (state.daily?.jobs) renderJobs(state.daily.jobs);
     await markStatus(job, "applied");
   }
 });
@@ -211,6 +255,40 @@ document.getElementById("btnRefresh").addEventListener("click", async () => {
     btn.textContent = "Refresh pool";
   }
 });
+
+const CAPTURE_BOOKMARK = `javascript:(()=>{const h=location.hostname;let board='Other';if(/indeed/i.test(h))board='Indeed';else if(/monster/i.test(h))board='Monster';else if(/careerbuilder/i.test(h))board='CareerBuilder';else if(/dice/i.test(h))board='Dice';const jobs=[];const seen=new Set();for(const a of document.querySelectorAll('a[href]')){let href=a.href.split('#')[0];const title=(a.innerText||a.getAttribute('aria-label')||'').trim().replace(/\\s+/g,' ');if(title.length<6||title.length>160||seen.has(href))continue;if(!/viewjob|[?&]jk=|job-detail|job-opening|\\/job\\//i.test(href))continue;seen.add(href);jobs.push({board,title:title.slice(0,140),url:href,snippet:((a.closest('article,li,div')||{}).innerText||'').replace(/\\s+/g,' ').slice(0,240)});if(jobs.length>=20)break;}if(!jobs.length){alert('No job links on this page yet. Scroll the results, then click Capture jobs again.');return;}window.open('http://127.0.0.1:8791/#import='+encodeURIComponent(JSON.stringify({jobs})));})();`;
+
+async function importFromHash() {
+  const hash = location.hash || "";
+  if (!hash.startsWith("#import=")) return;
+  const encoded = hash.slice("#import=".length);
+  history.replaceState(null, "", location.pathname);
+  let payload;
+  try {
+    payload = JSON.parse(decodeURIComponent(encoded));
+  } catch (_) {
+    return;
+  }
+  const jobs = payload.jobs || payload;
+  if (!Array.isArray(jobs) || !jobs.length) return;
+  document.getElementById("jobList").innerHTML = `<div class="loading">Adding ${jobs.length} jobs from your browser…</div>`;
+  const data = await api("/api/jobs/import", { method: "POST", body: JSON.stringify({ jobs }) });
+  state.daily = data;
+  renderJobs(data.jobs);
+  renderBoardStatus(data.jobs);
+  renderKpis(data.kpis);
+  await renderHistory();
+}
+
+document.getElementById("btnCopyCapture").addEventListener("click", async () => {
+  await navigator.clipboard.writeText(CAPTURE_BOOKMARK);
+  const btn = document.getElementById("btnCopyCapture");
+  const prev = btn.textContent;
+  btn.textContent = "Copied. Add it as a bookmark named Capture jobs.";
+  setTimeout(() => (btn.textContent = prev), 2500);
+});
+
+importFromHash().catch(() => {});
 
 loadDaily(false).catch((err) => {
   document.getElementById("jobList").innerHTML =

@@ -1,14 +1,17 @@
 """
-Maryiam Daily Jobs — local server
-Pulls remote BA roles from public aggregators, scores them against strategy.json,
-serves a daily apply board. Does not auto-submit applications on LinkedIn/Indeed/etc.
+My Daily Jobs — local server
+Pulls analyst roles from Indeed, Dice, Monster, and CareerBuilder,
+scores them against strategy.json, and serves a daily apply board.
+Does not auto-submit applications.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
+import sys
 import threading
 import time
 import urllib.error
@@ -18,6 +21,16 @@ from datetime import date, datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from env_local import load_env
+
+load_env()
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
 DATA = ROOT / "data"
@@ -26,7 +39,7 @@ APPS_FILE = DATA / "applications.json"
 DAILY_FILE = DATA / "daily_batch.json"
 STRATEGY_FILE = ROOT / "strategy.json"
 
-USER_AGENT = "MaryiamDailyJobs/1.0 (+local; strategy-aligned BA search)"
+USER_AGENT = "MyDailyJobs/1.0 (+local; analyst search)"
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8791"))
 
@@ -372,6 +385,10 @@ def score_job(job: dict, strategy: dict) -> tuple[int, list[str], bool]:
         "it business analyst",
         "business systems analyst",
         "process analyst",
+        "data analyst",
+        "qa analyst",
+        "quality analyst",
+        "quality assurance analyst",
     ]
     ba_title = any(t in title for t in title_hits)
     if ba_title:
@@ -639,6 +656,18 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:
+        try:
+            self._do_GET()
+        except Exception as exc:
+            import traceback
+
+            print(f"[http] GET {self.path} failed: {exc}\n{traceback.format_exc()}", flush=True)
+            try:
+                self._json(200, {"error": str(exc), "jobs": [], "appName": "My Daily Jobs", "refreshing": False})
+            except Exception:
+                pass
+
+    def _do_GET(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         qs = urllib.parse.parse_qs(parsed.query)
@@ -664,16 +693,12 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/jobs/daily":
             force = qs.get("force", ["0"])[0] in ("1", "true", "yes")
-            batch = build_daily_batch(strategy, force=force)
-            apps = load_apps()
-            status_by_id = {a["jobId"]: a.get("status") for a in apps}
-            for j in batch["jobs"]:
-                j["applicationStatus"] = status_by_id.get(j["id"])
-            batch["kpis"] = kpis(strategy, apps)
-            batch["boards"] = board_links(strategy)
-            batch["coverBlurb"] = strategy["coverBlurb"]
-            batch["candidate"] = strategy["candidate"]
-            return self._json(200, batch)
+            saved = load_saved_batch()
+            stale = not saved or saved.get("date") != date.today().isoformat()
+            if force or stale:
+                start_background_refresh(force=force or stale)
+            batch = saved or empty_batch(strategy, "Checking the boards now.")
+            return self._json(200, decorate_batch(strategy, batch))
 
         if path == "/" or path.startswith("/static/") or path in ("/app.js", "/styles.css"):
             return self._serve_static(path)
@@ -691,9 +716,16 @@ class Handler(BaseHTTPRequestHandler):
 
         strategy = load_strategy()
 
+        if parsed.path == "/api/jobs/import":
+            jobs = body.get("jobs") if isinstance(body.get("jobs"), list) else []
+            if not jobs:
+                return self._json(400, {"error": "jobs required"})
+            return self._json(200, import_listed_jobs(strategy, jobs[:40]))
+
         if parsed.path == "/api/jobs/refresh":
-            batch = build_daily_batch(strategy, force=True)
-            return self._json(200, batch)
+            start_background_refresh(force=True)
+            saved = load_saved_batch() or empty_batch(strategy, "Refresh started.")
+            return self._json(200, decorate_batch(strategy, saved))
 
         if parsed.path == "/api/applications":
             job_id = body.get("jobId")
@@ -741,15 +773,123 @@ class Handler(BaseHTTPRequestHandler):
         self._bytes(200, data, ctype)
 
 
+_refresh_lock = threading.Lock()
+_refresh_state = {"running": False, "error": ""}
+
+
+def empty_batch(strategy: dict, note: str = "") -> dict:
+    return {
+        "date": date.today().isoformat(),
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "jobs": [],
+        "poolSize": 0,
+        "remaining": 0,
+        "boardsInPool": [],
+        "note": note,
+        "appName": "My Daily Jobs",
+    }
+
+
+def load_saved_batch() -> dict | None:
+    if not DAILY_FILE.exists():
+        return None
+    try:
+        existing = json.loads(DAILY_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(existing, dict):
+        return None
+    existing.setdefault("jobs", [])
+    return existing
+
+
+def start_background_refresh(force: bool = False) -> None:
+    """Scrape off the request thread so the page can render immediately."""
+    if not _refresh_lock.acquire(blocking=False):
+        return
+    _refresh_state["running"] = True
+    _refresh_state["error"] = ""
+
+    def run() -> None:
+        try:
+            build_daily_batch(load_strategy(), force=force)
+        except Exception as exc:
+            _refresh_state["error"] = str(exc)
+            print(f"[refresh] failed: {exc}", flush=True)
+        finally:
+            _refresh_state["running"] = False
+            _refresh_lock.release()
+
+    threading.Thread(target=run, daemon=True).start()
+
+
+def import_listed_jobs(strategy: dict, incoming: list[dict]) -> dict:
+    """Add listings the user captured in their own browser."""
+    saved = load_saved_batch() or empty_batch(strategy)
+    by_url = {j.get("url"): j for j in saved.get("jobs") or [] if j.get("url")}
+    added = 0
+    for raw in incoming:
+        url = (raw.get("url") or "").strip()
+        title = re.sub(r"\s+", " ", (raw.get("title") or "")).strip()
+        if not url.startswith("http") or len(title) < 4:
+            continue
+        if not is_allowed_board_url(url):
+            continue
+        job = normalize_job(
+            job_id=hashlib.sha1(url.encode("utf-8")).hexdigest()[:16],
+            title=title[:180],
+            company=raw.get("company") or "Unknown",
+            url=url.split("#")[0],
+            source=raw.get("board") or detect_board(url),
+            location=raw.get("location") or "",
+            description=(raw.get("snippet") or "")[:500],
+        )
+        score, reasons, excluded = score_job(job, strategy)
+        if excluded or score < 20:
+            continue
+        job["score"] = score
+        job["reasons"] = (reasons or [])[:6]
+        job["linkStatus"] = "from your browser"
+        job["imported"] = True
+        by_url[job["url"]] = job
+        added += 1
+    jobs = sorted(by_url.values(), key=lambda j: (-(j.get("score") or 0), j.get("title") or ""))
+    saved["date"] = date.today().isoformat()
+    saved["generatedAt"] = datetime.now(timezone.utc).isoformat()
+    saved["jobs"] = jobs
+    saved["poolSize"] = len(jobs)
+    saved["remaining"] = len(jobs)
+    saved["note"] = f"Added {added} listing(s) from your browser."
+    DAILY_FILE.write_text(json.dumps(saved, indent=2), encoding="utf-8")
+    batch = decorate_batch(strategy, saved)
+    batch["imported"] = added
+    return batch
+
+
+def decorate_batch(strategy: dict, batch: dict) -> dict:
+    apps = load_apps()
+    status_by_id = {a.get("jobId"): a.get("status") for a in apps if a.get("jobId")}
+    status_by_url = {a.get("url"): a.get("status") for a in apps if a.get("url")}
+    for job in batch.get("jobs") or []:
+        job["applicationStatus"] = status_by_id.get(job.get("id")) or status_by_url.get(job.get("url"))
+    batch["kpis"] = kpis(strategy, apps)
+    batch["boards"] = board_links(strategy)
+    batch["coverBlurb"] = strategy.get("coverBlurb", "")
+    batch["candidate"] = strategy.get("candidate", {})
+    batch["appName"] = "My Daily Jobs"
+    batch["refreshing"] = _refresh_state["running"]
+    batch["error"] = _refresh_state["error"]
+    return batch
+
+
 def main() -> None:
     ensure_dirs()
     strategy = load_strategy()
-    print(f"Building first daily batch for {strategy['candidate']['name']}...")
-    # Warm cache in background so first page load is fast
-    threading.Thread(target=lambda: build_daily_batch(strategy, force=False), daemon=True).start()
+    print(f"My Daily Jobs — preparing today's batch for {strategy['candidate']['name']}...", flush=True)
+    start_background_refresh(force=False)
     server = ThreadingHTTPServer((HOST, PORT), Handler)
-    print(f"Maryiam Daily Jobs -> http://{HOST}:{PORT}/", flush=True)
-    print("Apply opens the employer/board URL. Tracking stays local in data/applications.json")
+    print(f"My Daily Jobs -> http://{HOST}:{PORT}/", flush=True)
+    print("Apply opens the board URL. Tracking stays local in data/applications.json")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

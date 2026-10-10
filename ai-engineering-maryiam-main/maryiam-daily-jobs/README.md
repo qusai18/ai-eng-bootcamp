@@ -1,6 +1,6 @@
-# Maryiam Daily Jobs
+# My Daily Jobs
 
-Local app for **remote USA Business Analyst** roles from **Indeed, Dice, LinkedIn, Monster, and CareerBuilder only**.
+Local app for Yusuf Hameed: business, systems, data, and QA analyst roles from **Indeed, Dice, Monster, and CareerBuilder**. Last 7 days, remote or within 30 miles of Columbia, Maryland, Easy Apply or 1-click.
 
 ## Run
 

@@ -47,10 +47,13 @@ SEARCHES = [
     },
 ]
 
-BA_TITLE = re.compile(
-    r"business\s+analyst|functional\s+analyst|systems?\s+analyst|requirements\s+analyst|business\s+systems\s+analyst",
+ANALYST_TITLE = re.compile(
+    r"business\s+analyst|functional\s+analyst|systems?\s+analyst|requirements\s+analyst|"
+    r"business\s+systems\s+analyst|data\s+analyst|bi\s+analyst|"
+    r"qa\s+analyst|quality\s+assurance\s+analyst|quality\s+analyst",
     re.I,
 )
+BA_TITLE = ANALYST_TITLE
 REMOTE_OK = re.compile(r"remote|work from home|wfh|telecommut", re.I)
 NON_USA = re.compile(
     r"\b(india|bangalore|hyderabad|pune|chennai|toronto|canada|uk|united kingdom|london|poland|romania|philippines|mexico city)\b",
@@ -93,7 +96,7 @@ def clean_job(raw: dict) -> dict | None:
         return None
     if not allowed_url(url):
         return None
-    if not BA_TITLE.search(title):
+    if not ANALYST_TITLE.search(title):
         return None
     blob = f"{title} {location} {raw.get('snippet') or ''}"
     if NON_USA.search(location) and not re.search(r"\b(USA|United States|U\.S\.|US-)\b", location, re.I):
@@ -121,8 +124,23 @@ def clean_job(raw: dict) -> dict | None:
     }
 
 
+def load_searches() -> list[dict]:
+    """Prefer strategy.json so Indeed, Dice, Monster, and CareerBuilder are all searched."""
+    path = ROOT / "strategy.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        searches = [s for s in (data.get("searches") or []) if s.get("board") != "LinkedIn" and s.get("url")]
+        if searches:
+            return searches
+    except (OSError, json.JSONDecodeError):
+        pass
+    return [s for s in SEARCHES if s.get("board") != "LinkedIn"]
+
+
 def scrape_with_playwright() -> list[dict]:
     from playwright.sync_api import sync_playwright
+
+    from google_auth import authenticate_boards
 
     collected: list[dict] = []
 
@@ -141,8 +159,12 @@ def scrape_with_playwright() -> list[dict]:
             permissions=["geolocation"],
         )
         page = context.new_page()
+        page.set_default_timeout(12000)
+        page.set_default_navigation_timeout(30000)
+        searches = load_searches()
+        print(f"[scrape] {len(searches)} searches across Indeed, Dice, Monster, CareerBuilder", flush=True)
 
-        for spec in SEARCHES:
+        for spec in searches:
             board = spec["board"]
             url = spec["url"]
             print(f"[scrape] {board}: {url}")
@@ -236,7 +258,7 @@ def scrape_with_playwright() -> list[dict]:
                       }
 
                       if (board === 'Monster') {
-                        document.querySelectorAll('a[href*="job-openings"]').forEach(a => {
+                        document.querySelectorAll('a[href*="job-openings"], a[href*="/job/"], a[data-testid*="jobTitle"], a[data-testid*="JobTitle"]').forEach(a => {
                           const card = a.closest('article, li, div') || a.parentElement;
                           const title = (a.innerText || card?.querySelector('h2, h3')?.innerText || '').trim();
                           const company = (card?.querySelector('[data-testid="company"], [class*="Company"]')?.innerText || '').trim();
@@ -253,11 +275,28 @@ def scrape_with_playwright() -> list[dict]:
                           if (/\\/jobs\\?/.test(href)) return;
                           const title = (a.innerText || '').trim();
                           if (title.length < 8 || title.length > 160) return;
-                          if (!/analyst/i.test(title)) return;
                           const card = a.closest('li, article, div') || a.parentElement;
                           const company = (card?.querySelector('[class*="company"]')?.innerText || '').trim();
                           const location = (card?.innerText || '').match(/Remote[^\\n]{0,40}/)?.[0] || 'Remote';
                           push(title, company, href, location, '', card?.innerText || '');
+                        });
+                      }
+
+                      if (out.length === 0) {
+                        const hrefOk = (href) => {
+                          if (board === 'Indeed') return /indeed\\.com\\/(viewjob|rc\\/clk)|[?&]jk=/.test(href);
+                          if (board === 'Dice') return /job-detail\\//.test(href);
+                          if (board === 'Monster') return /job-opening|\\/job\\//i.test(href);
+                          if (board === 'CareerBuilder') return /\\/job\\/|job-details/i.test(href);
+                          return false;
+                        };
+                        document.querySelectorAll('a[href]').forEach(a => {
+                          const href = a.href || '';
+                          if (!hrefOk(href)) return;
+                          const title = (a.innerText || a.getAttribute('aria-label') || '').trim();
+                          if (title.length < 4 || title.length > 180) return;
+                          const card = a.closest('article, li, div');
+                          push(title, '', href, '', '', card?.innerText || '');
                         });
                       }
 
@@ -279,6 +318,20 @@ def scrape_with_playwright() -> list[dict]:
             except Exception as exc:
                 print(f"[scrape] {board} failed: {exc}")
             time.sleep(1.2)
+
+        # Sign-in runs after the listings are collected so a stuck Google
+        # page cannot hide Indeed, Monster, or CareerBuilder.
+        try:
+            page.set_default_timeout(8000)
+            page.set_default_navigation_timeout(15000)
+            auth_results = authenticate_boards(page)
+            CACHE.mkdir(parents=True, exist_ok=True)
+            (CACHE / "auth_status.json").write_text(
+                json.dumps({"checkedAt": datetime.now(timezone.utc).isoformat(), "boards": auth_results}, indent=2),
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            print(f"[auth] skipped: {type(exc).__name__}", flush=True)
 
         browser.close()
 

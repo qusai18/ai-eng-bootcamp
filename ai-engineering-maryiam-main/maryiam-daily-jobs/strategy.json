@@ -1,103 +1,185 @@
 {
   "candidate": {
-    "name": "Maryiam Cutlerywala",
-    "email": "busybeeqk_786@yahoo.com",
-    "location": "Ellicott City, Maryland",
-    "headline": "Business Analyst | Requirements, UAT & Digital Delivery (Remote)"
+    "name": "Yusuf Hameed",
+    "email": "yush_21@yahoo.com",
+    "phone": "443-823-5622",
+    "location": "Columbia, MD 21045",
+    "linkedin": "https://www.linkedin.com/in/yusuf-hameed-09561644",
+    "headline": "Senior Business Analyst · Systems, Data & QA · Remote or Columbia, MD",
+    "summary": "Senior Business Analyst with more than 10 years in business analysis, project coordination, operations, and systems implementation. Leads requirements discovery across business, operational, and vendor teams and turns needs into functional specifications, process flows, acceptance criteria, and test scenarios. Healthcare and benefits background includes a practice-wide migration from Medinfometrics to NextTech and Compulink, UAT, and production support, plus earlier UnitedHealthcare benefits operations work. Uses SQL, Power BI, Jira, ChatGPT, and Microsoft Copilot.",
+    "skills": [
+      "Requirements, BRD / FRD / FDD, use cases, acceptance criteria",
+      "UAT, regression, defect documentation, root cause analysis",
+      "Process flows, gap analysis, implementation readiness",
+      "Jira stakeholder and vendor coordination",
+      "SQL, data validation, Microsoft Power BI",
+      "Healthcare, benefits, claims, and practice operations",
+      "ChatGPT and Microsoft Copilot"
+    ],
+    "experience": [
+      "Senior Business Analyst / Strategic Advisor, Baltimore Washington Eye Center, Glen Burnie, MD (2016–present)",
+      "Tech Support, UnitedHealthcare, Silver Spring, MD (2010–2014)",
+      "B.S. Business Administration, University of Baltimore (2005)",
+      "Microsoft Power BI Data Analyst Professional Certificate, in progress"
+    ]
   },
   "target": {
-    "role": "Mid-level Business Analyst / systems & digital delivery",
-    "workMode": "fully_remote",
-    "timeframe": "under_3_months",
-    "path": "BA → PM / delivery lead"
+    "roles": ["Business Analyst", "Systems Analyst", "Data Analyst", "QA Analyst"],
+    "workMode": "remote or within 30 miles of Columbia, Maryland",
+    "postedWithinDays": 7,
+    "applyType": "Easy Apply or 1-click apply",
+    "refreshBy": "09:00 America/New_York",
+    "boards": ["Indeed", "Dice", "Monster", "CareerBuilder"]
   },
   "search": {
     "queries": [
       "business analyst",
-      "requirements analyst",
-      "functional analyst",
       "systems analyst",
-      "digital business analyst",
-      "IT business analyst"
+      "data analyst",
+      "QA analyst"
     ],
+    "query": "business analyst OR \"systems analyst\" OR \"data analyst\" OR \"QA analyst\"",
     "includeKeywords": [
       "business analyst",
+      "systems analyst",
+      "data analyst",
+      "qa analyst",
+      "quality assurance analyst",
       "requirements",
       "user stories",
       "uat",
-      "agile",
-      "scrum",
-      "brd",
-      "functional",
-      "systems analyst",
+      "acceptance criteria",
+      "sql",
+      "power bi",
+      "jira",
       "process",
       "stakeholder",
       "healthcare",
-      "medicaid",
-      "mmis",
-      "government",
-      "jira",
-      "confluence"
+      "benefits"
     ],
     "boostKeywords": [
       "remote",
-      "work from home",
-      "fully remote",
+      "easy apply",
       "uat",
       "requirements",
-      "agile",
-      "user stories",
+      "acceptance criteria",
+      "sql",
+      "power bi",
+      "jira",
       "healthcare",
-      "public trust",
-      "federal"
+      "benefits",
+      "claims",
+      "functional specification"
     ],
     "excludeKeywords": [
-      "oracle ebs",
-      "oracle fusion",
-      "oracle cpq",
-      "netsuite",
-      "sap hana",
-      "s/4hana",
       "bcba",
       "behavior analyst",
       "board certified behavior",
-      "salesforce admin only",
-      "on-site only",
-      "onsite only",
-      "5 days in office"
+      "data scientist",
+      "machine learning engineer",
+      "software engineer",
+      "full-stack",
+      "fullstack",
+      "devops",
+      "registered nurse",
+      "account executive",
+      "sales executive"
     ],
     "softExcludeKeywords": [
-      "hybrid",
-      "3 days onsite",
-      "must be local",
-      "relocation required"
+      "clearance required",
+      "ts/sci",
+      "us citizenship required"
     ],
-    "preferredSectors": ["healthcare", "consulting", "government", "saas", "digital delivery"],
+    "postedWithinDays": 7,
+    "radiusMiles": 30,
+    "anchor": "Columbia, MD",
     "dailyBatchSize": 20,
-    "weeklyApplyTarget": 8,
-    "totalApplyTarget": 25
+    "weeklyApplyTarget": 10,
+    "totalApplyTarget": 40
   },
-  "coverBlurb": "Mid-level Business Analyst with 3+ years delivering BRDs, user stories, process flows, functional testing/UAT, and cross-team liaison on multi-platform digital solutions valued at $1M+. Seeking a fully remote BA / systems role where I can drive clear requirements, test readiness, and stakeholder alignment — with a path toward delivery leadership.",
+  "coverBlurb": "Senior Business Analyst with 10+ years turning stakeholder needs into functional specifications, process flows, acceptance criteria, and UAT. I have led a practice-wide clinical system migration (Medinfometrics to NextTech and Compulink), coordinated vendors and business users through testing and production, and earlier supported UnitedHealthcare benefits operations. I work in Jira, SQL, and Power BI, and I use ChatGPT and Copilot to speed up documentation. I am targeting Business Analyst, Systems Analyst, Data Analyst, and QA Analyst roles that are remote or within 30 miles of Columbia, Maryland.",
   "boards": {
-    "indeed": {
-      "label": "Indeed",
-      "url": "https://www.indeed.com/jobs?q=business+analyst&l=Remote&fromage=1&sort=date"
+    "indeed-remote": {
+      "label": "Indeed · Remote",
+      "url": "https://www.indeed.com/jobs?q=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&l=Remote&fromage=7&sort=date&sc=0kf%3Aattr(DSQF7)%3B"
     },
-    "linkedin": {
-      "label": "LinkedIn",
-      "url": "https://www.linkedin.com/jobs/search/?keywords=business%20analyst&location=United%20States&f_WT=2&f_TPR=r86400"
+    "indeed-columbia": {
+      "label": "Indeed · Columbia 30 mi",
+      "url": "https://www.indeed.com/jobs?q=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&l=Columbia%2C+MD&radius=30&fromage=7&sort=date&sc=0kf%3Aattr(DSQF7)%3B"
     },
-    "dice": {
-      "label": "Dice",
-      "url": "https://www.dice.com/jobs?q=business+analyst&location=Remote&countryCode=US&radius=30&radiusUnit=mi&page=1&pageSize=20&filters.workplaceTypes=Remote&language=en"
+    "dice-remote": {
+      "label": "Dice · Remote",
+      "url": "https://www.dice.com/jobs?q=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&location=Remote&countryCode=US&radius=30&radiusUnit=mi&page=1&pageSize=20&filters.workplaceTypes=Remote&filters.easyApply=true&filters.postedDate=SEVEN&language=en"
     },
-    "monster": {
-      "label": "Monster",
-      "url": "https://www.monster.com/jobs/search?q=business+analyst&where=Remote&page=1"
+    "dice-columbia": {
+      "label": "Dice · Columbia 30 mi",
+      "url": "https://www.dice.com/jobs?q=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&location=Columbia%2C+MD&countryCode=US&radius=30&radiusUnit=mi&page=1&pageSize=20&filters.easyApply=true&filters.postedDate=SEVEN&language=en"
     },
-    "careerbuilder": {
-      "label": "CareerBuilder",
-      "url": "https://www.careerbuilder.com/jobs?keywords=business+analyst&location=Remote"
+    "monster-remote": {
+      "label": "Monster · Remote",
+      "url": "https://www.monster.com/jobs/search?q=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&where=Remote&recency=7&page=1"
+    },
+    "monster-columbia": {
+      "label": "Monster · Columbia 30 mi",
+      "url": "https://www.monster.com/jobs/search?q=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&where=Columbia%2C+MD&rd=30&recency=7&page=1"
+    },
+    "careerbuilder-remote": {
+      "label": "CareerBuilder · Remote",
+      "url": "https://www.careerbuilder.com/jobs?keywords=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&location=Remote&posted=7"
+    },
+    "careerbuilder-columbia": {
+      "label": "CareerBuilder · Columbia 30 mi",
+      "url": "https://www.careerbuilder.com/jobs?keywords=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&location=Columbia%2C+MD&radius=30&posted=7"
     }
-  }
+  },
+  "searches": [
+    {
+      "board": "Indeed",
+      "locationMode": "remote",
+      "easyApplySearch": true,
+      "url": "https://www.indeed.com/jobs?q=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&l=Remote&fromage=7&sort=date&sc=0kf%3Aattr(DSQF7)%3B"
+    },
+    {
+      "board": "Indeed",
+      "locationMode": "columbia30",
+      "easyApplySearch": true,
+      "url": "https://www.indeed.com/jobs?q=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&l=Columbia%2C+MD&radius=30&fromage=7&sort=date&sc=0kf%3Aattr(DSQF7)%3B"
+    },
+    {
+      "board": "Dice",
+      "locationMode": "remote",
+      "easyApplySearch": true,
+      "url": "https://www.dice.com/jobs?q=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&location=Remote&countryCode=US&radius=30&radiusUnit=mi&page=1&pageSize=20&filters.workplaceTypes=Remote&filters.easyApply=true&filters.postedDate=SEVEN&language=en"
+    },
+    {
+      "board": "Dice",
+      "locationMode": "columbia30",
+      "easyApplySearch": true,
+      "url": "https://www.dice.com/jobs?q=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&location=Columbia%2C+MD&countryCode=US&radius=30&radiusUnit=mi&page=1&pageSize=20&filters.easyApply=true&filters.postedDate=SEVEN&language=en"
+    },
+    {
+      "board": "Monster",
+      "locationMode": "remote",
+      "easyApplySearch": false,
+      "url": "https://www.monster.com/jobs/search?q=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&where=Remote&recency=7&page=1"
+    },
+    {
+      "board": "Monster",
+      "locationMode": "columbia30",
+      "easyApplySearch": false,
+      "url": "https://www.monster.com/jobs/search?q=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&where=Columbia%2C+MD&rd=30&recency=7&page=1"
+    },
+    {
+      "board": "CareerBuilder",
+      "locationMode": "remote",
+      "easyApplySearch": false,
+      "url": "https://www.careerbuilder.com/jobs?keywords=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&location=Remote&posted=7"
+    },
+    {
+      "board": "CareerBuilder",
+      "locationMode": "columbia30",
+      "easyApplySearch": false,
+      "url": "https://www.careerbuilder.com/jobs?keywords=business+analyst+OR+%22systems+analyst%22+OR+%22data+analyst%22+OR+%22QA+analyst%22&location=Columbia%2C+MD&radius=30&posted=7"
+    }
+  ]
 }
